@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use ibig::IBig;
 use num_traits::{One, Pow};
-use crate::ast::{BinOp, Expr};
+pub use crate::ast::{BinOp, Expr};
 
 impl Add for Value {
     type Output = Value;

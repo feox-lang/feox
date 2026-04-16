@@ -1,4 +1,4 @@
-WHITESPACE = _{ " " | "\t" | "\n" }
+WHITESPACE = _{ " " | "\t" | "\n" | "\r" }
 
 digits  = @{ ASCII_DIGIT+ }
 number  = @{ "-"? ~ digits }
