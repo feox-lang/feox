@@ -18,7 +18,7 @@ pub struct ParserEnv {
 }
 
 impl ParserEnv {
-    
+
     pub fn new() -> ParserEnv {
         ParserEnv {
             vars: HashMap::new(),
@@ -282,16 +282,17 @@ fn parse_if(pair: Pair<Rule>, env: ParserEnvRef) -> Expr {
     }
 }
 
-fn parse_lambda(pair: Pair<Rule>, env: ParserEnvRef) -> Expr {
+fn parse_lambda(pair: Pair<Rule>, _env: ParserEnvRef) -> Expr {
     let mut inner = pair.into_inner();
 
-    let args_pair = inner.next().unwrap(); 
+    let args_pair = inner.next().unwrap();
+    let new_env = Rc::new(RefCell::new(ParserEnv::new()));
     let args = args_pair
         .into_inner()
-        .map(|p| (env.borrow_mut().idx(p.as_str()), p.as_str().to_string()))
+        .map(|p| (new_env.borrow_mut().idx(p.as_str()), p.as_str().to_string()))
         .collect();
 
-    let body = parse_expr(inner.next().unwrap(), env);
+    let body = parse_expr(inner.next().unwrap(), new_env);
 
     Expr::Lambda {
         args,
