@@ -15,15 +15,16 @@ pub enum Expr {
 
     Assign {
         name: String,
+        id: usize,
         value: Box<Expr>
     },
 
     Lambda {
-        args: Vec<String>,
+        args: Vec<(usize, String)>,
         body: Box<Expr>
     },
 
-    Ident(String),
+    Ident(usize),
 
     Block(Vec<Expr>),
 
@@ -37,6 +38,7 @@ pub enum Expr {
 
     For {
         var: String,
+        id: usize,
         iter: Box<Expr>,
         body: Box<Expr>
     },

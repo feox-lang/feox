@@ -1,3 +1,6 @@
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::rc::Rc;
 use pest::iterators::{Pairs, Pair};
 use pest::{Parser};
 use pest_derive::Parser;
@@ -7,27 +10,54 @@ use crate::ast::{BinOp, Expr, UnaryOp};
 #[grammar = "grammar.pest"]
 struct FeoxParser;
 
-pub fn parse(source: &str) -> Vec<Expr> {
-    let pairs = FeoxParser::parse(Rule::program, source).unwrap();
-    parse_program(pairs)
+type ParserEnvRef = Rc<RefCell<ParserEnv>>;
+
+pub struct ParserEnv {
+    pub vars: HashMap<String, usize>,
+    pub counter: usize
 }
 
-fn parse_program(pairs: Pairs<Rule>) -> Vec<Expr> {
+impl ParserEnv {
+    
+    pub fn new() -> ParserEnv {
+        ParserEnv {
+            vars: HashMap::new(),
+            counter: 0
+        }
+    }
+    pub fn idx(&mut self, name: &str) -> usize {
+        if let Some(idx ) = self.vars.get(name) {
+            *idx
+        } else {
+            let cur = self.counter;
+            self.counter += 1;
+            self.vars.insert(name.to_string(), cur);
+            cur
+        }
+    }
+}
+
+pub fn parse(source: &str, env: ParserEnvRef) -> Vec<Expr> {
+    let pairs = FeoxParser::parse(Rule::program, source).unwrap();
+    parse_program(pairs, env)
+}
+
+fn parse_program(pairs: Pairs<Rule>, env: ParserEnvRef) -> Vec<Expr> {
     pairs
         .filter(|p| p.as_rule() != Rule::EOI)
-        .map(parse_expr)
+        .map(|p| parse_expr(p, env.clone()))
         .collect()
 }
 
-fn parse_expr(pair: Pair<Rule>) -> Expr {
+fn parse_expr(pair: Pair<Rule>, env: ParserEnvRef) -> Expr {
     match pair.as_rule() {
-        Rule::assign => parse_assign(pair),
-        Rule::lambda => parse_lambda(pair),
-        Rule::if_ => parse_if(pair),
-        Rule::while_ => parse_while(pair),
-        Rule::for_ => parse_for(pair),
-        Rule::mod_ => parse_mod(pair),
-        Rule::return_ => parse_return(pair),
+        Rule::assign => parse_assign(pair, env),
+        Rule::lambda => parse_lambda(pair, env),
+        Rule::if_ => parse_if(pair, env),
+        Rule::while_ => parse_while(pair, env),
+        Rule::for_ => parse_for(pair, env),
+        Rule::mod_ => parse_mod(pair,env),
+        Rule::return_ => parse_return(pair, env),
         Rule::break_ => Expr::Break,
         Rule::continue_ => Expr::Continue,
 
@@ -38,27 +68,27 @@ fn parse_expr(pair: Pair<Rule>) -> Expr {
         | Rule::range
         | Rule::add
         | Rule::mul
-        | Rule::pow => parse_binary_chain(pair),
+        | Rule::pow => parse_binary_chain(pair, env),
 
-        Rule::unary => parse_unary(pair),
-        Rule::postfix => parse_postfix(pair),
-        Rule::primary => parse_primary(pair),
+        Rule::unary => parse_unary(pair, env),
+        Rule::postfix => parse_postfix(pair, env),
+        Rule::primary => parse_primary(pair, env),
 
         _ => unreachable!("{:?}", pair.as_rule()),
     }
 }
 
-fn parse_postfix(pair: Pair<Rule>) -> Expr {
+fn parse_postfix(pair: Pair<Rule>, env: ParserEnvRef) -> Expr {
     let mut inner = pair.into_inner();
 
-    let mut expr = parse_primary(inner.next().unwrap());
+    let mut expr = parse_primary(inner.next().unwrap(), env.clone());
 
     for p in inner {
         match p.as_rule() {
             Rule::call => {
                 let args = p
                     .into_inner()
-                    .map(parse_expr)
+                    .map(|p| parse_expr(p, env.clone()))
                     .collect();
 
                 expr = Expr::Call {
@@ -68,7 +98,7 @@ fn parse_postfix(pair: Pair<Rule>) -> Expr {
             }
 
             Rule::index => {
-                let idx = parse_expr(p.into_inner().next().unwrap());
+                let idx = parse_expr(p.into_inner().next().unwrap(), env.clone());
 
                 expr = Expr::Index {
                     object: Box::new(expr),
@@ -79,7 +109,7 @@ fn parse_postfix(pair: Pair<Rule>) -> Expr {
             Rule::method_call => {
                 let mut mc = p.into_inner();
                 let method = mc.next().unwrap().as_str().to_string();
-                let args = mc.map(parse_expr).collect();
+                let args = mc.map(|p| parse_expr(p, env.clone())).collect();
 
                 expr = Expr::Call {
                     func: Box::new(Expr::Index {
@@ -97,11 +127,11 @@ fn parse_postfix(pair: Pair<Rule>) -> Expr {
     expr
 }
 
-fn parse_mod(pair: Pair<Rule>) -> Expr {
+fn parse_mod(pair: Pair<Rule>, env: ParserEnvRef) -> Expr {
     let mut inner = pair.into_inner();
 
-    let modulus =  parse_expr(inner.next().unwrap());
-    let block = parse_block(inner.next().unwrap());
+    let modulus =  parse_expr(inner.next().unwrap(), env.clone());
+    let block = parse_block(inner.next().unwrap(), env.clone());
 
     Expr::Mod {
         modulus: Box::new(modulus),
@@ -109,29 +139,30 @@ fn parse_mod(pair: Pair<Rule>) -> Expr {
     }
 }
 
-fn parse_return(pair: Pair<Rule>) -> Expr {
+fn parse_return(pair: Pair<Rule>, env: ParserEnvRef) -> Expr {
     let mut inner = pair.into_inner();
 
-    let value = inner.next().map(parse_expr);
+    let value = inner.next().map(|p| parse_expr(p, env));
 
     Expr::Return(value.map(Box::new))
 }
-fn parse_assign(pair: Pair<Rule>) -> Expr {
+fn parse_assign(pair: Pair<Rule>, env: ParserEnvRef) -> Expr {
     let mut inner = pair.into_inner();
 
     let name = inner.next().unwrap().as_str().to_string();
-    let value  = parse_expr(inner.next().unwrap());
+    let id = env.borrow_mut().idx(&name);
+    let value  = parse_expr(inner.next().unwrap(), env);
 
-    Expr::Assign {name, value: Box::new(value) }
+    Expr::Assign {id, name, value: Box::new(value) }
 }
 
-fn parse_binary_chain(pair: Pair<Rule>) -> Expr {
+fn parse_binary_chain(pair: Pair<Rule>, env: ParserEnvRef) -> Expr {
     let mut inner = pair.into_inner();
 
-    let mut expr = parse_expr(inner.next().unwrap());
+    let mut expr = parse_expr(inner.next().unwrap(), env.clone());
 
     while let Some(op) = inner.next() {
-        let rhs = parse_expr(inner.next().unwrap());
+        let rhs = parse_expr(inner.next().unwrap(), env.clone());
         if op.as_str() == ".." || op.as_str() == "..=" {
             expr = Expr::Range {start: Box::new(expr), end: Box::new(rhs), inclusive: op.as_str() == "..="}
         } else {
@@ -163,12 +194,12 @@ fn parse_binary_chain(pair: Pair<Rule>) -> Expr {
     expr
 }
 
-fn parse_unary(pair: Pair<Rule>) -> Expr {
+fn parse_unary(pair: Pair<Rule>, env: ParserEnvRef) -> Expr {
     let mut inner = pair.clone().into_inner();
 
     if pair.as_str().starts_with('-') || pair.as_str().starts_with('!') {
         let op = pair.as_str().chars().next().unwrap();
-        let expr = parse_unary(inner.next().unwrap());
+        let expr = parse_unary(inner.next().unwrap(), env);
 
         Expr::UnaryOp {
             op: match op {
@@ -179,11 +210,11 @@ fn parse_unary(pair: Pair<Rule>) -> Expr {
             expr: Box::new(expr)
         }
     } else {
-        parse_postfix(inner.next().unwrap())
+        parse_postfix(inner.next().unwrap(), env)
     }
 }
 
-fn parse_primary(pair: Pair<Rule>) -> Expr {
+fn parse_primary(pair: Pair<Rule>, env: ParserEnvRef) -> Expr {
     let inner = pair.into_inner().next().unwrap();
 
     match inner.as_rule() {
@@ -201,12 +232,12 @@ fn parse_primary(pair: Pair<Rule>) -> Expr {
 
         Rule::nil => Expr::Nil,
 
-        Rule::ident => Expr::Ident(inner.as_str().to_string()),
+        Rule::ident => Expr::Ident(*env.borrow().vars.get(inner.as_str()).unwrap()),
 
-        Rule::expr => parse_expr(inner),
+        Rule::expr => parse_expr(inner, env),
 
-        Rule::array => parse_array(inner),
-        Rule::block => parse_block(inner),
+        Rule::array => parse_array(inner, env),
+        Rule::block => parse_block(inner, env),
         Rule::bignum => {
             let s = inner.as_str();
             let (base, exp) = s.split_once('e').unwrap();
@@ -215,34 +246,34 @@ fn parse_primary(pair: Pair<Rule>) -> Expr {
         }
 
 
-        _ => parse_expr(inner)
+        _ => parse_expr(inner, env)
     }
 }
 
-fn parse_array(pair: Pair<Rule>) -> Expr {
+fn parse_array(pair: Pair<Rule>, env: ParserEnvRef) -> Expr {
     let elems = pair
         .into_inner()
-        .map(parse_expr)
+        .map(|p| parse_expr(p, env.clone()))
         .collect();
 
     Expr::Array(elems)
 }
 
-fn parse_block(pair: Pair<Rule>) -> Expr {
+fn parse_block(pair: Pair<Rule>, env: ParserEnvRef) -> Expr {
     let stmts = pair
         .into_inner()
-        .map(parse_expr)
+        .map(|p| parse_expr(p, env.clone()))
         .collect();
 
     Expr::Block(stmts)
 }
 
-fn parse_if(pair: Pair<Rule>) -> Expr {
+fn parse_if(pair: Pair<Rule>, env: ParserEnvRef) -> Expr {
     let mut inner = pair.into_inner();
 
-    let cond  = parse_expr(inner.next().unwrap());
-    let then  = parse_block(inner.next().unwrap());
-    let else_ = inner.next().map(parse_block);
+    let cond  = parse_expr(inner.next().unwrap(), env.clone());
+    let then  = parse_block(inner.next().unwrap(), env.clone());
+    let else_ = inner.next().map(|p| parse_block(p, env.clone()));
 
     Expr::If {
         cond: Box::new(cond),
@@ -251,16 +282,16 @@ fn parse_if(pair: Pair<Rule>) -> Expr {
     }
 }
 
-fn parse_lambda(pair: Pair<Rule>) -> Expr {
+fn parse_lambda(pair: Pair<Rule>, env: ParserEnvRef) -> Expr {
     let mut inner = pair.into_inner();
 
     let args_pair = inner.next().unwrap(); 
     let args = args_pair
         .into_inner()
-        .map(|p| p.as_str().to_string())
+        .map(|p| (env.borrow_mut().idx(p.as_str()), p.as_str().to_string()))
         .collect();
 
-    let body = parse_expr(inner.next().unwrap());
+    let body = parse_expr(inner.next().unwrap(), env);
 
     Expr::Lambda {
         args,
@@ -268,11 +299,11 @@ fn parse_lambda(pair: Pair<Rule>) -> Expr {
     }
 }
 
-fn parse_while(pair: Pair<Rule>) -> Expr {
+fn parse_while(pair: Pair<Rule>, env: ParserEnvRef) -> Expr {
     let mut inner = pair.into_inner();
 
-    let cond = parse_expr(inner.next().unwrap());
-    let body = parse_block(inner.next().unwrap());
+    let cond = parse_expr(inner.next().unwrap(), env.clone());
+    let body = parse_block(inner.next().unwrap(), env.clone());
 
     Expr::While {
         cond: Box::new(cond),
@@ -280,15 +311,17 @@ fn parse_while(pair: Pair<Rule>) -> Expr {
     }
 }
 
-fn parse_for(pair: Pair<Rule>) -> Expr {
+fn parse_for(pair: Pair<Rule>, env: ParserEnvRef) -> Expr {
     let mut inner = pair.into_inner();
 
     let var  = inner.next().unwrap().as_str().to_string();
-    let iter = parse_expr(inner.next().unwrap());
-    let body = parse_block(inner.next().unwrap());
+    let id = env.borrow_mut().idx(var.as_str());
+    let iter = parse_expr(inner.next().unwrap(), env.clone());
+    let body = parse_block(inner.next().unwrap(), env.clone());
 
     Expr::For {
         var,
+        id,
         iter: Box::new(iter),
         body: Box::new(body),
     }

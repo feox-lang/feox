@@ -1,4 +1,4 @@
-for x in (1..1e9) {
+for x in (1..1e9 + 9) {
     if x * x % (1e9 + 9) == 5 {
         break;
     };
