@@ -1,10 +1,16 @@
+#[derive(Debug, Clone, Copy)]
+pub struct Span {
+    pub start_line: usize,
+    pub start_col: usize,
+    pub end_line: usize,
+    pub end_col: usize,
+}
+
 #[derive(Debug, Clone)]
 pub struct Spanned<T> {
     pub node: T,
-    pub line: usize,
-    pub col: usize,
+    pub span: Span,
 }
-
 #[derive(Debug, Clone)]
 pub enum Expr {
     String(String),
@@ -16,15 +22,15 @@ pub enum Expr {
     Assign {
         name: String,
         id: usize,
-        value: Box<Expr>
+        value: Box<Expr>,
     },
 
     Lambda {
         args: Vec<(usize, String)>,
-        body: Box<Expr>
+        body: Box<Expr>,
     },
 
-    Ident(usize),
+    Ident(usize, String),
 
     Block(Vec<Expr>),
 
@@ -33,19 +39,19 @@ pub enum Expr {
     If {
         cond: Box<Expr>,
         then: Box<Expr>,
-        else_: Option<Box<Expr>>
+        else_: Option<Box<Expr>>,
     },
 
     For {
         var: String,
         id: usize,
         iter: Box<Expr>,
-        body: Box<Expr>
+        body: Box<Expr>,
     },
 
     While {
         cond: Box<Expr>,
-        body: Box<Expr>
+        body: Box<Expr>,
     },
 
     Break,
@@ -53,35 +59,35 @@ pub enum Expr {
 
     Mod {
         modulus: Box<Expr>,
-        body: Box<Expr>
+        body: Box<Expr>,
     },
 
     Range {
         start: Box<Expr>,
         end: Box<Expr>,
-        inclusive: bool
+        inclusive: bool,
     },
 
     Call {
         func: Box<Expr>,
-        args: Vec<Expr>
+        args: Vec<Expr>,
     },
 
     BinOp {
         left: Box<Expr>,
         right: Box<Expr>,
-        op: BinOp
+        op: BinOp,
     },
 
     UnaryOp {
         op: UnaryOp,
-        expr: Box<Expr>
+        expr: Box<Expr>,
     },
 
     Index {
         object: Box<Expr>,
-        index: Box<Expr>
-    }
+        index: Box<Expr>,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -95,16 +101,21 @@ pub enum BinOp {
     Rem,
 
     // Comp
-    Eq, Neq,
-    Gt, Ge,
-    Lt, Le,
-    
+    Eq,
+    Neq,
+    Gt,
+    Ge,
+    Lt,
+    Le,
+
     // Bit
-    And, Or, Xor
+    And,
+    Or,
+    Xor,
 }
 
 #[derive(Debug, Clone)]
 pub enum UnaryOp {
     Neg,
-    Not
+    Not,
 }

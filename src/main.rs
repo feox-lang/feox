@@ -1,28 +1,45 @@
+use feox::eval::Env;
+use feox::parser::ParserEnv;
+use feox::{eval, parser};
 use std::cell::RefCell;
 use std::io::{self, Write};
 use std::rc::Rc;
 use std::{env, fs};
-use feox::{eval, parser};
-use feox::eval::Env;
-use feox::parser::ParserEnv;
 
-fn run_line(line: &str, env: Rc<RefCell<Env>>, parser_env: Rc<RefCell<ParserEnv>>) { 
+fn run_line(line: &str, env: Rc<RefCell<Env>>, parser_env: Rc<RefCell<ParserEnv>>) {
     if line.trim().is_empty() {
         return;
     }
 
-    let ast = &parser::parse((line.to_string()).as_str(), parser_env)[0];
-    let result = eval::eval(ast, env);
-    println!("{:#?}", result);
+    let ast = &match parser::parse(line, parser_env) {
+        Ok(ast) => ast,
+        Err(err) => {
+            eprintln!("{}", err);
+            return;
+        }
+    };
+    let result = eval::eval(&eval::Expr::Block(ast.clone()), env);
+    match result {
+        Ok(ok) => println!("{}", ok),
+        Err(err) => eprintln!("{}", err),
+    }
 }
 
-fn run_file(path: &str, env: Rc<RefCell<Env>>,  parser_env: Rc<RefCell<ParserEnv>>) {
-    let content = fs::read_to_string(path)
-        .expect("failed to read file");
+fn run_file(path: &str, env: Rc<RefCell<Env>>, parser_env: Rc<RefCell<ParserEnv>>) {
+    let content = fs::read_to_string(path).expect("failed to read file");
 
-    let ast = &parser::parse(content.as_str(), parser_env);
+    let ast = &match parser::parse(content.as_str(), parser_env) {
+        Ok(ast) => ast,
+        Err(err) => {
+            eprintln!("{}", err);
+            return;
+        }
+    };
     let result = eval::eval(&eval::Expr::Block(ast.clone()), env);
-    println!("{:#?}", result);
+    match result {
+        Ok(ok) => println!("{}", ok),
+        Err(err) => eprintln!("{}", err),
+    }
 }
 
 fn repl(env: &Rc<RefCell<Env>>, parser_env: &Rc<RefCell<ParserEnv>>) {

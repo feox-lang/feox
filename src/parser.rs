@@ -1,10 +1,10 @@
+use crate::ast::{BinOp, Expr, UnaryOp};
+use pest::Parser;
+use pest::iterators::{Pair, Pairs};
+use pest_derive::Parser;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use pest::iterators::{Pairs, Pair};
-use pest::{Parser};
-use pest_derive::Parser;
-use crate::ast::{BinOp, Expr, UnaryOp};
 
 #[derive(Parser)]
 #[grammar = "grammar.pest"]
@@ -14,19 +14,18 @@ type ParserEnvRef = Rc<RefCell<ParserEnv>>;
 
 pub struct ParserEnv {
     pub vars: HashMap<String, usize>,
-    pub counter: usize
+    pub counter: usize,
 }
 
 impl ParserEnv {
-
     pub fn new() -> ParserEnv {
         ParserEnv {
             vars: HashMap::new(),
-            counter: 0
+            counter: 0,
         }
     }
     pub fn idx(&mut self, name: &str) -> usize {
-        if let Some(idx ) = self.vars.get(name) {
+        if let Some(idx) = self.vars.get(name) {
             *idx
         } else {
             let cur = self.counter;
@@ -37,9 +36,9 @@ impl ParserEnv {
     }
 }
 
-pub fn parse(source: &str, env: ParserEnvRef) -> Vec<Expr> {
-    let pairs = FeoxParser::parse(Rule::program, source).unwrap();
-    parse_program(pairs, env)
+pub fn parse(source: &str, env: ParserEnvRef) -> Result<Vec<Expr>, String> {
+    let pairs = FeoxParser::parse(Rule::program, source).map_err(|_| "parse error".to_string())?;
+    Ok(parse_program(pairs, env))
 }
 
 fn parse_program(pairs: Pairs<Rule>, env: ParserEnvRef) -> Vec<Expr> {
@@ -56,7 +55,7 @@ fn parse_expr(pair: Pair<Rule>, env: ParserEnvRef) -> Expr {
         Rule::if_ => parse_if(pair, env),
         Rule::while_ => parse_while(pair, env),
         Rule::for_ => parse_for(pair, env),
-        Rule::mod_ => parse_mod(pair,env),
+        Rule::mod_ => parse_mod(pair, env),
         Rule::return_ => parse_return(pair, env),
         Rule::break_ => Expr::Break,
         Rule::continue_ => Expr::Continue,
@@ -86,10 +85,7 @@ fn parse_postfix(pair: Pair<Rule>, env: ParserEnvRef) -> Expr {
     for p in inner {
         match p.as_rule() {
             Rule::call => {
-                let args = p
-                    .into_inner()
-                    .map(|p| parse_expr(p, env.clone()))
-                    .collect();
+                let args = p.into_inner().map(|p| parse_expr(p, env.clone())).collect();
 
                 expr = Expr::Call {
                     func: Box::new(expr),
@@ -130,7 +126,7 @@ fn parse_postfix(pair: Pair<Rule>, env: ParserEnvRef) -> Expr {
 fn parse_mod(pair: Pair<Rule>, env: ParserEnvRef) -> Expr {
     let mut inner = pair.into_inner();
 
-    let modulus =  parse_expr(inner.next().unwrap(), env.clone());
+    let modulus = parse_expr(inner.next().unwrap(), env.clone());
     let block = parse_block(inner.next().unwrap(), env.clone());
 
     Expr::Mod {
@@ -151,9 +147,13 @@ fn parse_assign(pair: Pair<Rule>, env: ParserEnvRef) -> Expr {
 
     let name = inner.next().unwrap().as_str().to_string();
     let id = env.borrow_mut().idx(&name);
-    let value  = parse_expr(inner.next().unwrap(), env);
+    let value = parse_expr(inner.next().unwrap(), env);
 
-    Expr::Assign {id, name, value: Box::new(value) }
+    Expr::Assign {
+        id,
+        name,
+        value: Box::new(value),
+    }
 }
 
 fn parse_binary_chain(pair: Pair<Rule>, env: ParserEnvRef) -> Expr {
@@ -164,7 +164,11 @@ fn parse_binary_chain(pair: Pair<Rule>, env: ParserEnvRef) -> Expr {
     while let Some(op) = inner.next() {
         let rhs = parse_expr(inner.next().unwrap(), env.clone());
         if op.as_str() == ".." || op.as_str() == "..=" {
-            expr = Expr::Range {start: Box::new(expr), end: Box::new(rhs), inclusive: op.as_str() == "..="}
+            expr = Expr::Range {
+                start: Box::new(expr),
+                end: Box::new(rhs),
+                inclusive: op.as_str() == "..=",
+            }
         } else {
             expr = Expr::BinOp {
                 op: match op.as_str() {
@@ -207,7 +211,7 @@ fn parse_unary(pair: Pair<Rule>, env: ParserEnvRef) -> Expr {
                 '!' => UnaryOp::Not,
                 _ => unreachable!(),
             },
-            expr: Box::new(expr)
+            expr: Box::new(expr),
         }
     } else {
         parse_postfix(inner.next().unwrap(), env)
@@ -225,14 +229,17 @@ fn parse_primary(pair: Pair<Rule>, env: ParserEnvRef) -> Expr {
 
         Rule::string => {
             let s = inner.as_str();
-            Expr::String(s[1..s.len()-1].to_string())
+            Expr::String(s[1..s.len() - 1].to_string())
         }
 
         Rule::bool => Expr::Bool(inner.as_str() == "true"),
 
         Rule::nil => Expr::Nil,
 
-        Rule::ident => Expr::Ident(*env.borrow().vars.get(inner.as_str()).unwrap()),
+        Rule::ident => Expr::Ident(
+            *env.borrow().vars.get(inner.as_str()).unwrap(),
+            inner.as_str().to_string(),
+        ),
 
         Rule::expr => parse_expr(inner, env),
 
@@ -241,12 +248,12 @@ fn parse_primary(pair: Pair<Rule>, env: ParserEnvRef) -> Expr {
         Rule::bignum => {
             let s = inner.as_str();
             let (base, exp) = s.split_once('e').unwrap();
-            let n = 10_i64.pow( exp.parse::<i64>().unwrap().try_into().unwrap()) * base.parse::<i64>().unwrap();
+            let n = 10_i64.pow(exp.parse::<i64>().unwrap().try_into().unwrap())
+                * base.parse::<i64>().unwrap();
             Expr::Number(n)
         }
 
-
-        _ => parse_expr(inner, env)
+        _ => parse_expr(inner, env),
     }
 }
 
@@ -271,8 +278,8 @@ fn parse_block(pair: Pair<Rule>, env: ParserEnvRef) -> Expr {
 fn parse_if(pair: Pair<Rule>, env: ParserEnvRef) -> Expr {
     let mut inner = pair.into_inner();
 
-    let cond  = parse_expr(inner.next().unwrap(), env.clone());
-    let then  = parse_block(inner.next().unwrap(), env.clone());
+    let cond = parse_expr(inner.next().unwrap(), env.clone());
+    let then = parse_block(inner.next().unwrap(), env.clone());
     let else_ = inner.next().map(|p| parse_block(p, env.clone()));
 
     Expr::If {
@@ -315,7 +322,7 @@ fn parse_while(pair: Pair<Rule>, env: ParserEnvRef) -> Expr {
 fn parse_for(pair: Pair<Rule>, env: ParserEnvRef) -> Expr {
     let mut inner = pair.into_inner();
 
-    let var  = inner.next().unwrap().as_str().to_string();
+    let var = inner.next().unwrap().as_str().to_string();
     let id = env.borrow_mut().idx(var.as_str());
     let iter = parse_expr(inner.next().unwrap(), env.clone());
     let body = parse_block(inner.next().unwrap(), env.clone());
