@@ -5,4 +5,4 @@ for a in range(0, LIM):
     for b in range(0, LIM):
         arr.append(math.gcd(a, b))
 
-print(arr)
+print(' '.join([str(e) for e in arr]))

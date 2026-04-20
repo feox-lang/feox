@@ -1,2 +1,0 @@
-let LIM = 100;
-(0..LIM).map(|a| (0..LIM).map(|b| gcd(a, b)).collect()).collect();

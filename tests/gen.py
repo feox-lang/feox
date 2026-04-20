@@ -1,22 +1,16 @@
-from pathlib import Path
 import subprocess
+from cases import *
 try:
     from tqdm import tqdm
     print = tqdm.write
 except ImportError:
     tqdm = None
 
-CASES_DIR = Path(__file__).parent / "cases"
-CACHE_DIR = Path(__file__).parent / "cache"
-CACHE_DIR.mkdir(exist_ok=True)
+for case in tqdm(CASES, unit=" tests") if tqdm else CASES:
+    py_file = case / "test.py"
+    cache_file = CACHE_DIR / f"{case.relative_to(CASES_DIR)}.txt"
 
-cases = sorted(
-    {f.stem for f in CASES_DIR.iterdir()}
-)
-
-for case in tqdm(cases, unit=" tests") if tqdm else cases:
-    py_file = CASES_DIR / f"{case}.py"
-    cache_file = CACHE_DIR / f"{case}.txt"
+    cache_file.parent.mkdir(exist_ok=True)
 
     result = subprocess.run(
         ["python3", py_file],
@@ -26,4 +20,4 @@ for case in tqdm(cases, unit=" tests") if tqdm else cases:
 
     cache_file.write_text(output)
 
-    print(f"Generated output for {case}")
+    print(f"Generated output for {case.relative_to(CASES_DIR)}")
