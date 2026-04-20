@@ -47,7 +47,7 @@ FeOx prioritizes simplicity while providing all the necessary features needed fo
 Find the square root of 56480 modulo 1e9 + 9
 ```feox
 mod 1e9 + 9 {
-    print((1..=1e9+8).filter(|x| x * x == 56480)());
+    (1..=1e9).filter(|x| x * x == 56480)();
 };
 ```
 
