@@ -41,6 +41,10 @@ let fold = |iter, f, acc| {
     acc;
 };
 
+let first = |iter| {
+    iter();
+};
+
 let any = |iter| {
     let v = nil;
     while (v = iter()) != nil {
