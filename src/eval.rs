@@ -10,7 +10,6 @@ impl PartialEq for Value {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Value::Number(a), Value::Number(b)) => a == b,
-            (Value::String(a), Value::String(b)) => a == b,
             (Value::Nil, Value::Nil) => true,
             _ => false,
         }
@@ -23,7 +22,6 @@ impl PartialOrd for Value {
             (Value::Nil, _) => Some(std::cmp::Ordering::Equal),
             (_, Value::Nil) => Some(std::cmp::Ordering::Equal),
             (Value::Number(a), Value::Number(b)) => a.partial_cmp(b),
-            (Value::String(a), Value::String(b)) => a.partial_cmp(b),
             (Value::Array(a), Value::Array(b)) => a.partial_cmp(b),
             _ => None,
         }
@@ -73,12 +71,12 @@ impl Env {
                     _ => return Err(EvalError::TypeError("index has to be a number"))
                 };
 
-                let vals = match val {
-                    Value::Array(x) => x,
+                match val {
+                    Value::Array(x) =>
+                        val = x.get_mut(idx as usize)
+                            .ok_or(EvalError::IndexError)?,
                     _ => return Err(EvalError::TypeError("cannot index into non-array"))
                 };
-                val = vals.get_mut(idx as usize)
-                    .ok_or(EvalError::IndexError)?;
             }
             *val = to_set;
             Ok(val.clone())
@@ -102,7 +100,10 @@ impl Env {
     pub fn add(&self, lhs: Value, rhs: Value) -> EvalResult {
         match (lhs, rhs) {
             (Value::Number(a), Value::Number(b)) => Ok(Value::Number(self.modded(a + b))),
-            (Value::String(a), Value::String(b)) => Ok(Value::String(a + &b)),
+            (Value::Array(mut a), Value::Array(mut b)) => {
+                a.append(&mut b);
+                Ok(Value::Array(a))
+            }
             (Value::Array(mut a), b) => {
                 a.push(b);
                 Ok(Value::Array(a))
@@ -118,13 +119,6 @@ impl Env {
     pub fn mul(&self, lhs: Value, rhs: Value) -> EvalResult {
         match (lhs, rhs) {
             (Value::Number(a), Value::Number(b)) => Ok(Value::Number(self.modded(a * b))),
-            (Value::String(a), Value::Number(b)) | (Value::Number(b), Value::String(a)) => {
-                let mut res = String::new();
-                for _ in 0..b {
-                    res.push_str(a.as_str());
-                }
-                Ok(Value::String(res))
-            }
             (Value::Array(a), Value::Number(b)) | (Value::Number(b), Value::Array(a)) => {
                 let mut res = Vec::new();
                 for _ in 0..b {
@@ -279,41 +273,45 @@ pub enum EvalError {
 #[derive(Debug, Clone, Default)]
 pub enum Value {
     Number(i64),
-    String(String),
     Array(Vec<Value>),
-    Object(HashMap<String, Value>),
+    Char(char),
     Lambda {
         args: Vec<String>,
         body: Box<Expr>,
         env: EnvRef,
     },
-    Nil,
-    Range {
-        start: i64,
-        end: i64,
-        inclusive: bool,
-    },
-    #[default]
-    Uninit,
+    #[default] Nil,
 }
 impl std::fmt::Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Value::Number(n) => write!(f, "{}", n),
-            Value::String(s) => write!(f, "{}", s),
             Value::Array(a) => {
-                write!(f, "[")?;
-                for (i, v) in a.iter().enumerate() {
-                    if i > 0 {
-                        write!(f, ", ")?;
+                let is_string = a.iter().all(|v| matches!(v, Value::Char(_)));
+
+                if is_string {
+                    write!(f, "\"")?;
+                    for v in a {
+                        if let Value::Char(c) = v {
+                            write!(f, "{}", c)?;
+                        }
                     }
-                    write!(f, "{}", v)?;
+                    write!(f, "\"")
+                } else {
+                    write!(f, "[")?;
+                    for (i, v) in a.iter().enumerate() {
+                        if i > 0 {
+                            write!(f, ", ")?;
+                        }
+                        write!(f, "{}", v)?;
+                    }
+                    write!(f, "]")
                 }
-                write!(f, "]")
             }
             Value::Nil => write!(f, "nil"),
             Value::Lambda { .. } => write!(f, "<lambda>"),
-            _ => write!(f, "<value>"),
+            Value::Char(c) => write!(f, "{}", c),
+            // _ => write!(f, "<value>"),
         }
     }
 }
@@ -322,6 +320,19 @@ type EvalResult = Result<Value, EvalError>;
 
 pub fn eval(expr: &Expr, env: EnvRef) -> EvalResult {
     match expr {
+        Expr::Push(obj, expr) => {
+            let obj = eval(&**obj, env.clone())?;
+
+
+            let mut obj = match obj {
+                Value::Array(a) => a,
+                _ => return Err(EvalError::TypeError("can only push to arrays"))
+            };
+            
+            let val =  eval(&**expr, env)?;
+            obj.push(val);
+            Ok(Value::Array(obj))
+        }
         Expr::Len(obj) => {
             let obj = eval(&**obj, env.clone())?;
 
@@ -360,7 +371,7 @@ pub fn eval(expr: &Expr, env: EnvRef) -> EvalResult {
             }
         }
         Expr::Number(n) => Ok(Value::Number(env.borrow().modded(n.clone()))),
-        Expr::String(s) => Ok(Value::String(s.to_string())),
+        Expr::String(s) => Ok(Value::Array(s.chars().map(|x| Value::Char(x)).collect::<Vec<_>>())),
         Expr::Bool(b) => Ok(Value::Number(*b as i64)),
         Expr::Nil => Ok(Value::Nil),
         Expr::Array(exprs) => {
