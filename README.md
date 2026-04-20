@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="logo.png" width="100" alt="FeOx logo">
+	<img src="logo.png" width="100" alt="FeOx logo">
 
 # FeOx
 
@@ -7,12 +7,12 @@ A lightweight interpreted language for numerical computation and algorithmic exp
 </div>
 
 <p align="center">
-  <img src="https://img.shields.io/github/license/feox-lang/feox" alt="License">
-  <img src="https://img.shields.io/github/v/release/feox-lang/feox" alt="Version">
-  <img src="https://img.shields.io/github/contributors/feox-lang/feox" alt="Contributors">
-  <a href="https://discord.gg/g3YnbAdufv">
-    <img src="https://img.shields.io/badge/Discord-Community-5865F2?logo=discord&logoColor=white">
-  </a>
+	<img src="https://img.shields.io/github/license/feox-lang/feox" alt="License">
+	<img src="https://img.shields.io/github/v/release/feox-lang/feox" alt="Version">
+	<img src="https://img.shields.io/github/contributors/feox-lang/feox" alt="Contributors">
+	<a href="https://discord.gg/g3YnbAdufv">
+		<img src="https://img.shields.io/badge/Discord-Community-5865F2?logo=discord&logoColor=white">
+	</a>
 </p>
 
 > [!WARNING]
@@ -47,7 +47,7 @@ FeOx prioritizes simplicity while providing all the necessary features needed fo
 Find the square root of 56480 modulo 1e9 + 9
 ```feox
 mod 1e9 + 9 {
-    (1..=1e9).filter(|x| x * x == 56480)();
+	(1..=1e9).filter(|x| x * x == 56480).first();
 };
 ```
 
