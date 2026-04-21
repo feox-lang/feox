@@ -230,3 +230,22 @@ let fact = |n| {
         (1..n+1).fold(|x, acc| x * acc, 1);
     }
 };
+
+
+let stoi = |s| {
+    let res = 0;
+    let l = len(s);
+    for i in (0..l) {
+        res = res * 10;
+        if [s[i]] == "1" { res = res + 1 };
+        if [s[i]] == "2" { res = res + 2 };
+        if [s[i]] == "3" { res = res + 3 };
+        if [s[i]] == "4" { res = res + 4 };
+        if [s[i]] == "5" { res = res + 5 };
+        if [s[i]] == "6" { res = res + 6 };
+        if [s[i]] == "7" { res = res + 7 };
+        if [s[i]] == "8" { res = res + 8 };
+        if [s[i]] == "9" { res = res + 9 };
+    };
+    res
+};

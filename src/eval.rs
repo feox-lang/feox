@@ -12,6 +12,7 @@ impl PartialEq for Value {
         match (self, other) {
             (Value::Number(a), Value::Number(b)) => a == b,
             (Value::Array(a),  Value::Array(b)) => a == b,
+            (Value::Char(a), Value::Char(b)) => a == b,
             (Value::Nil, Value::Nil) => true,
             _ => false,
         }
