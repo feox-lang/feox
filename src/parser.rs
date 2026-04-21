@@ -293,18 +293,12 @@ fn parse_primary(pair: Pair<Rule>) -> Expr {
             }
             Expr::String(res)
         }
-        
+
         Rule::char => {
             let chars = inner.as_str().chars().collect::<Vec<_>>();
             let c = chars[1];
             Expr::Char(if c == '\\' {
-                match chars[2] {
-                    'n' => '\n',
-                    'r' => '\r',
-                    't' => '\t',
-                    '\\' => '\\',
-                    _ => todo!(),
-                }
+                chars[2]
             } else {
                 c
             })
