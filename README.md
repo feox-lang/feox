@@ -30,7 +30,7 @@ It is not a general purpose language; instead it focuses on:
 
 FeOx prioritizes simplicity while providing all the necessary features needed for efficient problem solving.
 
-
+See the syntax reference in [FEOX.md](FEOX.md).
 
 ---
 ### Examples
