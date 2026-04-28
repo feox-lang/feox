@@ -25,10 +25,10 @@ pub enum Expr {
         indices: Vec<Expr>,
         value: Box<Expr>,
     },
-    
+
     Declare {
         name: String,
-        value: Box<Expr>
+        value: Box<Expr>,
     },
 
     Lambda {
@@ -93,24 +93,22 @@ pub enum Expr {
         object: Box<Expr>,
         index: Box<Expr>,
     },
-    
+
     // Len(Box<Expr>),
     // Input,
     // Print(Box<Expr>),
     // Push(Box<Expr>, Box<Expr>),
-    
     LogicalOp {
         left: Box<Expr>,
         right: Box<Expr>,
-        op: LogicalOp
-    }
+        op: LogicalOp,
+    },
 }
 
-#[derive(Clone)]
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum LogicalOp {
     And,
-    Or
+    Or,
 }
 
 #[derive(Debug, Clone)]

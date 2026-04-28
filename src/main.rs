@@ -1,7 +1,7 @@
 use feox::eval::{Env, Expr};
 use feox::{builtins, eval, parser};
-use rustyline::{Cmd, DefaultEditor, KeyEvent};
 use rustyline::error::ReadlineError;
+use rustyline::{Cmd, DefaultEditor, KeyEvent};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::{env, fs};
@@ -58,7 +58,7 @@ fn read_input(rl: &mut DefaultEditor) -> Result<String, ReadlineError> {
                 _ => {}
             }
         }
-        
+
         input.push_str(&line);
         input.push('\n');
 
@@ -102,16 +102,19 @@ fn main() {
     let env = Rc::new(RefCell::new(Env::new()));
     const STDLIB: &str = include_str!("../stdlib.fe");
 
-    let ast = match parser::parse(STDLIB){
+    let ast = match parser::parse(STDLIB) {
         Ok(ast) => ast,
-        Err(e) => panic!("{}", e)
+        Err(e) => panic!("{}", e),
     };
     eval::eval(&Expr::Block(ast), env.clone()).expect("stdlib should eval");
-    env.borrow_mut().set("push".to_owned(), eval::Value::BuiltinFn(builtins::push));
-    env.borrow_mut().set("print".to_owned(), eval::Value::BuiltinFn(builtins::print));
-    env.borrow_mut().set("input".to_owned(), eval::Value::BuiltinFn(builtins::input));
-    env.borrow_mut().set("len".to_owned(), eval::Value::BuiltinFn(builtins::len));
-
+    env.borrow_mut()
+        .set("push".to_owned(), eval::Value::BuiltinFn(builtins::push));
+    env.borrow_mut()
+        .set("print".to_owned(), eval::Value::BuiltinFn(builtins::print));
+    env.borrow_mut()
+        .set("input".to_owned(), eval::Value::BuiltinFn(builtins::input));
+    env.borrow_mut()
+        .set("len".to_owned(), eval::Value::BuiltinFn(builtins::len));
 
     let args: Vec<String> = env::args().collect();
 

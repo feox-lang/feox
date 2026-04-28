@@ -1,9 +1,8 @@
-use crate::ast::{LogicalOp, UnaryOp};
 pub use crate::ast::{BinOp, Expr};
+use crate::ast::{LogicalOp, UnaryOp};
 use num_traits::identities::Zero;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::io::{self, Read};
 use std::rc::Rc;
 use thiserror::Error;
 
@@ -11,7 +10,7 @@ impl PartialEq for Value {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Value::Number(a), Value::Number(b)) => a == b,
-            (Value::Array(a),  Value::Array(b)) => a == b,
+            (Value::Array(a), Value::Array(b)) => a == b,
             (Value::Char(a), Value::Char(b)) => a == b,
             (Value::Nil, Value::Nil) => true,
             _ => false,
@@ -34,9 +33,9 @@ impl PartialOrd for Value {
 // Helper functions for the modulo operations
 fn extended_gcd(a: i64, b: i64) -> (i64, i64, i64) {
     if b == 0 {
-        return (a,1,0);
+        return (a, 1, 0);
     }
-    let (g, x1, y1) = extended_gcd(b, a%b);
+    let (g, x1, y1) = extended_gcd(b, a % b);
     (g, y1, x1 - (a / b) * y1)
 }
 fn inverse_mod(a: i64, modulus: i64) -> Result<i64, EvalError> {
@@ -46,10 +45,7 @@ fn inverse_mod(a: i64, modulus: i64) -> Result<i64, EvalError> {
     let a = a.rem_euclid(modulus);
     let (g, x, _) = extended_gcd(a, modulus);
     if g != 1 {
-        return Err(EvalError::NonInvertibleModulo {
-            value: a,
-            modulus,
-        });
+        return Err(EvalError::NonInvertibleModulo { value: a, modulus });
     }
     Ok(x.rem_euclid(modulus))
 }
@@ -59,7 +55,7 @@ type EnvRef = Rc<RefCell<Env>>;
 pub struct Env {
     vars: HashMap<String, Value>,
     parent: Option<EnvRef>,
-    modulus: Vec<i64>
+    modulus: Vec<i64>,
 }
 
 impl Env {
@@ -80,7 +76,9 @@ impl Env {
     }
 
     pub fn get(&self, name: &str) -> Option<Value> {
-        self.vars.get(name).cloned()
+        self.vars
+            .get(name)
+            .cloned()
             .or_else(|| self.parent.as_ref()?.borrow().get(name))
     }
 
@@ -90,18 +88,18 @@ impl Env {
 
     pub fn modify(&mut self, name: String, indices: Vec<Value>, to_set: Value) -> EvalResult {
         if self.vars.contains_key(&name) {
-            let mut val =  self.vars.get_mut(&name).unwrap();
+            let mut val = self.vars.get_mut(&name).unwrap();
             for idx in indices {
                 let idx = match idx {
                     Value::Number(x) => x,
-                    _ => return Err(EvalError::TypeError("index has to be a number"))
+                    _ => return Err(EvalError::TypeError("index has to be a number")),
                 };
 
                 match val {
-                    Value::Array(x) =>
-                        val = x.get_mut(idx as usize)
-                            .ok_or(EvalError::IndexError)?,
-                    _ => return Err(EvalError::TypeError("cannot index into non-array"))
+                    Value::Array(x) => {
+                        val = x.get_mut(idx as usize).ok_or(EvalError::IndexError)?
+                    }
+                    _ => return Err(EvalError::TypeError("cannot index into non-array")),
                 };
             }
             *val = to_set;
@@ -126,6 +124,9 @@ impl Env {
     pub fn add(&self, lhs: Value, rhs: Value) -> EvalResult {
         match (lhs, rhs) {
             (Value::Number(a), Value::Number(b)) => Ok(Value::Number(self.modded(a + b))),
+            (Value::Char(a), Value::Number(b)) | (Value::Number(b), Value::Char(a)) => {
+                Ok(Value::Char((a as u8 + b as u8) as char))
+            }
             (Value::Array(mut a), Value::Array(mut b)) => {
                 a.append(&mut b);
                 Ok(Value::Array(a))
@@ -160,6 +161,7 @@ impl Env {
     pub fn sub(&self, lhs: Value, rhs: Value) -> EvalResult {
         match (lhs, rhs) {
             (Value::Number(a), Value::Number(b)) => Ok(Value::Number(self.modded(a - b))),
+            (Value::Char(a), Value::Char(b)) => Ok(Value::Number(a as i64 - b as i64)),
 
             (_, _) => Err(EvalError::TypeError("unsupported types for `-`")),
         }
@@ -204,8 +206,8 @@ impl Env {
 
     pub fn pow(&self, lhs: Value, rhs: Value) -> EvalResult {
         match (lhs, rhs) {
-            (Value::Number(mut lhs), Value::Number(mut rhs)) => {
-                Ok(Value::Number(if let Some(modulus) = (&self.modulus).last() {
+            (Value::Number(mut lhs), Value::Number(mut rhs)) => Ok(Value::Number(
+                if let Some(modulus) = (&self.modulus).last() {
                     let mut res = 1;
 
                     while rhs >= 1 {
@@ -229,8 +231,8 @@ impl Env {
                         rhs /= 2;
                     }
                     res
-                }))
-            }
+                },
+            )),
 
             (_, _) => Err(EvalError::TypeError("unsupported types for `**`")),
         }
@@ -242,7 +244,7 @@ impl Env {
                 if b == 0 {
                     return Err(EvalError::DivisionByZero);
                 }
-                if let Some(modulus) =( &self.modulus).last() {
+                if let Some(modulus) = (&self.modulus).last() {
                     let inv = inverse_mod(b, *modulus)?;
                     let res = ((a as i128) * (inv as i128)).rem_euclid(*modulus as i128) as i64;
                     Ok(Value::Number(res))
@@ -294,10 +296,7 @@ pub enum EvalError {
     #[error("invalid modulus: {0}")]
     InvalidModulus(i64),
     #[error("value {value} has no inverse modulo {modulus}")]
-    NonInvertibleModulo {
-        value: i64,
-        modulus: i64,
-    },
+    NonInvertibleModulo { value: i64, modulus: i64 },
     #[error("continue outside of loop")]
     Continue,
     #[error("break outside of loop")]
@@ -317,7 +316,8 @@ pub enum Value {
         env: EnvRef,
     },
     BuiltinFn(fn(Vec<Value>) -> EvalResult),
-    #[default] Nil,
+    #[default]
+    Nil,
 }
 impl std::fmt::Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -359,38 +359,35 @@ pub type EvalResult = Result<Value, EvalError>;
 pub fn eval(expr: &Expr, env: EnvRef) -> EvalResult {
     let val = match expr {
         Expr::Char(c) => Ok(Value::Char(*c)),
-        
-        Expr::LogicalOp {
-            left, right, op
-        } => {
-            match *op {
-                LogicalOp::Or => {
-                    let left = eval(&**left, env.clone())?;
-                    if is_true(&left) {
-                        return Ok(Value::Number(1))
-                    }
-                    let right = eval(&**right, env.clone())?;
-                    if is_true(&right) {
-                        return Ok(Value::Number(1))
-                    }
-                    return Ok(Value::Number(0))
-                }
-                LogicalOp::And => {
 
-                    let left = eval(&**left, env.clone())?;
-                    if !is_true(&left) {
-                        return Ok(Value::Number(0))
-                    }
-                    let right = eval(&**right, env.clone())?;
-                    if !is_true(&right) {
-                        return Ok(Value::Number(0))
-                    }
-                    return Ok(Value::Number(1))
+        Expr::LogicalOp { left, right, op } => match *op {
+            LogicalOp::Or => {
+                let left = eval(&**left, env.clone())?;
+                if is_true(&left) {
+                    return Ok(Value::Number(1));
                 }
+                let right = eval(&**right, env.clone())?;
+                if is_true(&right) {
+                    return Ok(Value::Number(1));
+                }
+                return Ok(Value::Number(0));
             }
-        }
+            LogicalOp::And => {
+                let left = eval(&**left, env.clone())?;
+                if !is_true(&left) {
+                    return Ok(Value::Number(0));
+                }
+                let right = eval(&**right, env.clone())?;
+                if !is_true(&right) {
+                    return Ok(Value::Number(0));
+                }
+                return Ok(Value::Number(1));
+            }
+        },
         Expr::Number(n) => Ok(Value::Number(env.borrow().modded(n.clone()))),
-        Expr::String(s) => Ok(Value::Array(s.chars().map(|x| Value::Char(x)).collect::<Vec<_>>())),
+        Expr::String(s) => Ok(Value::Array(
+            s.chars().map(|x| Value::Char(x)).collect::<Vec<_>>(),
+        )),
         Expr::Bool(b) => Ok(Value::Number(*b as i64)),
         Expr::Nil => Ok(Value::Nil),
         Expr::Array(exprs) => {
@@ -407,14 +404,18 @@ pub fn eval(expr: &Expr, env: EnvRef) -> EvalResult {
         }
         Expr::If { cond, then, else_ } => eval_if(cond, then, else_, env.clone()),
         Expr::BinOp { op, left, right } => eval_bin_op(op, left, right, env.clone()),
-        Expr::Assign { name, value , indices} => eval_assign(name, value, indices, env.clone()),
-        Expr::Declare {name, value } => eval_declare(name, value, env.clone()),
+        Expr::Assign {
+            name,
+            value,
+            indices,
+        } => eval_assign(name, value, indices, env.clone()),
+        Expr::Declare { name, value } => eval_declare(name, value, env.clone()),
         Expr::Ident(name) => env
             .borrow()
             .get(name)
             .ok_or(EvalError::UndefinedVariable(name.to_string())),
         Expr::UnaryOp { op, expr } => eval_unary_op(op, expr, env.clone()),
-        Expr::Index {index, object} => {
+        Expr::Index { index, object } => {
             let index = match eval(index, env.clone())? {
                 Value::Number(x) => x,
                 _ => return Err(EvalError::TypeError("index has to be a number")),
@@ -425,9 +426,10 @@ pub fn eval(expr: &Expr, env: EnvRef) -> EvalResult {
                 _ => return Err(EvalError::TypeError("cannot index into non-array")),
             };
 
-            Ok(object.get(index as usize)
-                .ok_or(EvalError::IndexError)?.clone())
-
+            Ok(object
+                .get(index as usize)
+                .ok_or(EvalError::IndexError)?
+                .clone())
         }
 
         Expr::Mod { modulus, body } => eval_mod(modulus, body, env.clone()),
@@ -440,18 +442,18 @@ pub fn eval(expr: &Expr, env: EnvRef) -> EvalResult {
             let mut end = end.clone();
             if *inclusive {
                 end = Box::new(Expr::BinOp {
-                    op:BinOp::Add,
+                    op: BinOp::Add,
                     left: Box::new(Expr::Number(1)),
-                    right: end.clone()
+                    right: end.clone(),
                 });
             }
-            eval_call(&vec![*start.clone(), *end], &Box::new(Expr::Ident("range".to_string())), env.clone())
+            eval_call(
+                &vec![*start.clone(), *end],
+                &Box::new(Expr::Ident("range".to_string())),
+                env.clone(),
+            )
         }
-        Expr::For {
-            var,
-            iter,
-            body,
-        } => eval_for(var, iter, body, env.clone()),
+        Expr::For { var, iter, body } => eval_for(var, iter, body, env.clone()),
         Expr::Continue => Err(EvalError::Continue),
         Expr::Break => Err(EvalError::Break),
         Expr::Return(v) => {
@@ -480,7 +482,7 @@ pub fn eval(expr: &Expr, env: EnvRef) -> EvalResult {
     }?;
     match val {
         Value::Number(num) => Ok(Value::Number(env.borrow().modded(num))),
-        o => Ok(o)
+        o => Ok(o),
     }
 }
 
@@ -508,22 +510,24 @@ fn eval_for(var: &str, iter: &Box<Expr>, body: &Box<Expr>, env: EnvRef) -> EvalR
         Value::Lambda {
             args,
             body: iter_body,
-            env: iter_env
+            env: iter_env,
         } if args.is_empty() => {
             loop {
                 let new_env = Rc::new(RefCell::new(Env::child(iter_env.clone())));
                 let val = match eval(&iter_body, new_env) {
                     Ok(v) => v,
                     Err(EvalError::Return(v)) => v.unwrap_or(Value::Nil),
-                    other => return other
+                    other => return other,
                 };
-                if val == Value::Nil {break}
+                if val == Value::Nil {
+                    break;
+                }
                 env.borrow_mut().set(var.to_string(), val);
                 match eval(&**body, env.clone()) {
                     Err(EvalError::Break) => break,
                     Err(EvalError::Continue) => continue,
                     Ok(_) => (),
-                    other => return other
+                    other => return other,
                 }
             }
             Ok(Value::Nil)
@@ -536,7 +540,6 @@ fn eval_while(cond: &Box<Expr>, body: &Box<Expr>, env: EnvRef) -> EvalResult {
     let mut val = eval(&**cond, env.clone())?;
 
     while is_true(&val) {
-
         match eval(&**body, env.clone()) {
             Ok(v) => v,
             Err(EvalError::Continue) => continue,
@@ -549,7 +552,11 @@ fn eval_while(cond: &Box<Expr>, body: &Box<Expr>, env: EnvRef) -> EvalResult {
 }
 
 fn eval_builtin(args: &Vec<Expr>, func: fn(Vec<Value>) -> EvalResult, env: EnvRef) -> EvalResult {
-    func(args.iter().map(|e| eval(e, env.clone())).collect::<Result<Vec<Value>, EvalError>>()?)
+    func(
+        args.iter()
+            .map(|e| eval(e, env.clone()))
+            .collect::<Result<Vec<Value>, EvalError>>()?,
+    )
 }
 
 fn eval_call(args: &Vec<Expr>, func: &Box<Expr>, env: EnvRef) -> EvalResult {
@@ -557,7 +564,6 @@ fn eval_call(args: &Vec<Expr>, func: &Box<Expr>, env: EnvRef) -> EvalResult {
         Ok(v) => match v {
             Value::Lambda { args, body, env } => (args, body, env),
             Value::BuiltinFn(func) => return eval_builtin(args, func, env),
-
 
             _ => return Err(EvalError::TypeError("can only call functions")),
         },
@@ -615,10 +621,14 @@ fn eval_declare(name: &str, value: &Box<Expr>, env: EnvRef) -> EvalResult {
 
 fn eval_assign(name: &str, value: &Box<Expr>, indices: &Vec<Expr>, env: EnvRef) -> EvalResult {
     let value = eval(&**value, env.clone());
-    let indices = indices.into_iter().map(|x| eval(x, env.clone())).collect::<Result<Vec<_>, _>>()?;
+    let indices = indices
+        .into_iter()
+        .map(|x| eval(x, env.clone()))
+        .collect::<Result<Vec<_>, _>>()?;
     match value {
         Ok(v) => {
-            env.borrow_mut().modify(name.to_string(), indices, v.clone())?;
+            env.borrow_mut()
+                .modify(name.to_string(), indices, v.clone())?;
             Ok(v)
         }
         o => o,

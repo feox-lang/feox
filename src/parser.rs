@@ -1,19 +1,18 @@
-use std::error::Error;
 use crate::ast::{BinOp, Expr, LogicalOp, UnaryOp};
-use pest::{Parser};
+use pest::Parser;
 use pest::iterators::{Pair, Pairs};
 use pest_derive::Parser;
+use std::error::Error;
 
 #[derive(Parser)]
 #[grammar = "grammar.pest"]
 struct FeoxParser;
 
-
 // pub struct ParserEnv {
 //     pub vars: HashMap<String, usize>,
 //     pub counter: usize,
 // }
-// 
+//
 // impl ParserEnv {
 //     pub fn new() -> ParserEnv {
 //         ParserEnv {
@@ -58,8 +57,7 @@ fn parse_expr(pair: Pair<Rule>) -> Expr {
         Rule::break_ => Expr::Break,
         Rule::continue_ => Expr::Continue,
 
-        Rule::logical_and
-        | Rule::logical_or => parse_logical_chain(pair),
+        Rule::logical_and | Rule::logical_or => parse_logical_chain(pair),
 
         Rule::or
         | Rule::and
@@ -173,7 +171,6 @@ fn parse_assign(pair: Pair<Rule>) -> Expr {
     }
 }
 
-
 fn parse_logical_chain(pair: Pair<Rule>) -> Expr {
     let mut inner = pair.into_inner();
 
@@ -181,15 +178,14 @@ fn parse_logical_chain(pair: Pair<Rule>) -> Expr {
 
     while let Some(op) = inner.next() {
         let rhs = parse_expr(inner.next().unwrap());
-            expr = Expr::LogicalOp {
-                op: match op.as_str() {
-                    "&&" => LogicalOp::And,
-                    "||" => LogicalOp::Or,
-                    _ => unreachable!("{}", op.as_str()),
-                },
-                left: Box::new(expr),
-                right: Box::new(rhs),
-
+        expr = Expr::LogicalOp {
+            op: match op.as_str() {
+                "&&" => LogicalOp::And,
+                "||" => LogicalOp::Or,
+                _ => unreachable!("{}", op.as_str()),
+            },
+            left: Box::new(expr),
+            right: Box::new(rhs),
         }
     }
 
@@ -293,30 +289,25 @@ fn parse_primary(pair: Pair<Rule>) -> Expr {
         Rule::char => {
             let chars = inner.as_str().chars().collect::<Vec<_>>();
             let c = chars[1];
-            Expr::Char(
-                if c == '\\' {
-                    match chars[2] {
-                        'n' => '\n',
-                        'r' => '\r',
-                        't' => '\t',
-                        '\'' => '\'',
-                        '\\' => '\\',
-                        _ => unreachable!(),
-                    }
+            Expr::Char(if c == '\\' {
+                match chars[2] {
+                    'n' => '\n',
+                    'r' => '\r',
+                    't' => '\t',
+                    '\'' => '\'',
+                    '\\' => '\\',
+                    _ => unreachable!(),
                 }
-                else {
-                    c
-                }
-            )
+            } else {
+                c
+            })
         }
 
         Rule::bool => Expr::Bool(inner.as_str() == "true"),
 
         Rule::nil => Expr::Nil,
 
-        Rule::ident => Expr::Ident(
-            inner.as_str().to_string(),
-        ),
+        Rule::ident => Expr::Ident(inner.as_str().to_string()),
 
         Rule::expr => parse_expr(inner),
 
@@ -339,26 +330,18 @@ fn parse_primary(pair: Pair<Rule>) -> Expr {
         //     Expr::Push(Box::new(parse_expr(inner.next().unwrap())), Box::new(parse_expr(inner.next().unwrap())))
 
         // }
-
-
         _ => parse_expr(inner),
     }
 }
 
 fn parse_array(pair: Pair<Rule>) -> Expr {
-    let elems = pair
-        .into_inner()
-        .map(|p| parse_expr(p))
-        .collect();
+    let elems = pair.into_inner().map(|p| parse_expr(p)).collect();
 
     Expr::Array(elems)
 }
 
 fn parse_block(pair: Pair<Rule>) -> Expr {
-    let stmts = pair
-        .into_inner()
-        .map(|p| parse_expr(p))
-        .collect();
+    let stmts = pair.into_inner().map(|p| parse_expr(p)).collect();
 
     Expr::Block(stmts)
 }
