@@ -1,5 +1,5 @@
 use feox::eval::{Env, Expr};
-use feox::{eval, parser};
+use feox::{builtins, eval, parser};
 use rustyline::{Cmd, DefaultEditor, KeyEvent};
 use rustyline::error::ReadlineError;
 use std::cell::RefCell;
@@ -107,7 +107,10 @@ fn main() {
         Err(e) => panic!("{}", e)
     };
     eval::eval(&Expr::Block(ast), env.clone()).expect("stdlib should eval");
-
+    env.borrow_mut().set("push".to_owned(), eval::Value::BuiltinFn(builtins::push));
+    env.borrow_mut().set("print".to_owned(), eval::Value::BuiltinFn(builtins::print));
+    env.borrow_mut().set("input".to_owned(), eval::Value::BuiltinFn(builtins::input));
+    env.borrow_mut().set("len".to_owned(), eval::Value::BuiltinFn(builtins::len));
 
 
     let args: Vec<String> = env::args().collect();

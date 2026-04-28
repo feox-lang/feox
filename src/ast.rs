@@ -94,10 +94,10 @@ pub enum Expr {
         index: Box<Expr>,
     },
     
-    Len(Box<Expr>),
-    Input,
-    Print(Box<Expr>),
-    Push(Box<Expr>, Box<Expr>),
+    // Len(Box<Expr>),
+    // Input,
+    // Print(Box<Expr>),
+    // Push(Box<Expr>, Box<Expr>),
     
     LogicalOp {
         left: Box<Expr>,

@@ -329,16 +329,16 @@ fn parse_primary(pair: Pair<Rule>) -> Expr {
                 * base.parse::<i64>().unwrap();
             Expr::Number(n)
         }
-        Rule::len =>
-            Expr::Len(Box::new(parse_expr(inner.into_inner().next().unwrap()))),
-        Rule::input => Expr::Input,
-        Rule::print =>
-            Expr::Print(Box::new(parse_expr(inner.into_inner().next().unwrap()))),
-        Rule::push => {
-            let mut inner = inner.into_inner();
-            Expr::Push(Box::new(parse_expr(inner.next().unwrap())), Box::new(parse_expr(inner.next().unwrap())))
+        // Rule::len =>
+        //     Expr::Len(Box::new(parse_expr(inner.into_inner().next().unwrap()))),
+        // Rule::input => Expr::Input,
+        // Rule::print =>
+        //     Expr::Print(Box::new(parse_expr(inner.into_inner().next().unwrap()))),
+        // Rule::push => {
+        //     let mut inner = inner.into_inner();
+        //     Expr::Push(Box::new(parse_expr(inner.next().unwrap())), Box::new(parse_expr(inner.next().unwrap())))
 
-        }
+        // }
 
 
         _ => parse_expr(inner),
