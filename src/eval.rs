@@ -153,7 +153,7 @@ impl Env {
             (Value::Array(a), Value::Number(b)) | (Value::Number(b), Value::Array(a)) => {
                 let mut res = Vec::new();
                 for _ in 0..b {
-                    res.extend(a.clone().into_iter())
+                    res.extend(a.clone())
                 }
                 Ok(Value::Array(res))
             }
@@ -443,11 +443,11 @@ pub fn eval(expr: &Expr, env: EnvRef) -> EvalResult {
         } => {
             let mut end = end.clone();
             if *inclusive {
-                end = Box::new(Expr::BinOp {
+                *end = Expr::BinOp {
                     op: BinOp::Add,
                     left: Box::new(Expr::Number(1)),
                     right: end.clone(),
-                });
+                };
             }
             eval_call(
                 &[*start.clone(), *end],
