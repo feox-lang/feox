@@ -357,7 +357,7 @@ impl std::fmt::Display for Value {
 pub type EvalResult = Result<Value, EvalError>;
 
 pub fn eval(expr: &Expr, env: EnvRef) -> EvalResult {
-    match expr {
+    let val = match expr {
         Expr::Char(c) => Ok(Value::Char(*c)),
         
         Expr::LogicalOp {
@@ -369,7 +369,7 @@ pub fn eval(expr: &Expr, env: EnvRef) -> EvalResult {
                     if is_true(&left) {
                         return Ok(Value::Number(1))
                     }
-                    let right = eval(&**right, env)?;
+                    let right = eval(&**right, env.clone())?;
                     if is_true(&right) {
                         return Ok(Value::Number(1))
                     }
@@ -381,7 +381,7 @@ pub fn eval(expr: &Expr, env: EnvRef) -> EvalResult {
                     if !is_true(&left) {
                         return Ok(Value::Number(0))
                     }
-                    let right = eval(&**right, env)?;
+                    let right = eval(&**right, env.clone())?;
                     if !is_true(&right) {
                         return Ok(Value::Number(0))
                     }
@@ -405,15 +405,15 @@ pub fn eval(expr: &Expr, env: EnvRef) -> EvalResult {
 
             Ok(Value::Array(out))
         }
-        Expr::If { cond, then, else_ } => eval_if(cond, then, else_, env),
-        Expr::BinOp { op, left, right } => eval_bin_op(op, left, right, env),
-        Expr::Assign { name, value , indices} => eval_assign(name, value, indices, env),
-        Expr::Declare {name, value } => eval_declare(name, value, env),
+        Expr::If { cond, then, else_ } => eval_if(cond, then, else_, env.clone()),
+        Expr::BinOp { op, left, right } => eval_bin_op(op, left, right, env.clone()),
+        Expr::Assign { name, value , indices} => eval_assign(name, value, indices, env.clone()),
+        Expr::Declare {name, value } => eval_declare(name, value, env.clone()),
         Expr::Ident(name) => env
             .borrow()
             .get(name)
             .ok_or(EvalError::UndefinedVariable(name.to_string())),
-        Expr::UnaryOp { op, expr } => eval_unary_op(op, expr, env),
+        Expr::UnaryOp { op, expr } => eval_unary_op(op, expr, env.clone()),
         Expr::Index {index, object} => {
             let index = match eval(index, env.clone())? {
                 Value::Number(x) => x,
@@ -430,7 +430,7 @@ pub fn eval(expr: &Expr, env: EnvRef) -> EvalResult {
 
         }
 
-        Expr::Mod { modulus, body } => eval_mod(modulus, body, env),
+        Expr::Mod { modulus, body } => eval_mod(modulus, body, env.clone()),
 
         Expr::Range {
             start,
@@ -445,18 +445,18 @@ pub fn eval(expr: &Expr, env: EnvRef) -> EvalResult {
                     right: end.clone()
                 });
             }
-            eval_call(&vec![*start.clone(), *end], &Box::new(Expr::Ident("range".to_string())), env)
+            eval_call(&vec![*start.clone(), *end], &Box::new(Expr::Ident("range".to_string())), env.clone())
         }
         Expr::For {
             var,
             iter,
             body,
-        } => eval_for(var, iter, body, env),
+        } => eval_for(var, iter, body, env.clone()),
         Expr::Continue => Err(EvalError::Continue),
         Expr::Break => Err(EvalError::Break),
         Expr::Return(v) => {
             if let Some(v) = v {
-                let v = eval(&**v, env);
+                let v = eval(&**v, env.clone());
                 Err(EvalError::Return(Some(v?)))
             } else {
                 Err(EvalError::Return(Some(Value::Nil)))
@@ -465,10 +465,10 @@ pub fn eval(expr: &Expr, env: EnvRef) -> EvalResult {
         Expr::Lambda { args, body } => Ok(Value::Lambda {
             args: args.clone(),
             body: body.clone(),
-            env,
+            env: env.clone(),
         }),
-        Expr::Call { args, func } => eval_call(args, func, env),
-        Expr::While { cond, body } => eval_while(cond, body, env),
+        Expr::Call { args, func } => eval_call(args, func, env.clone()),
+        Expr::While { cond, body } => eval_while(cond, body, env.clone()),
 
         Expr::Block(exprs) => {
             let mut last = Value::Nil;
@@ -477,6 +477,10 @@ pub fn eval(expr: &Expr, env: EnvRef) -> EvalResult {
             }
             Ok(last)
         }
+    }?;
+    match val {
+        Value::Number(num) => Ok(Value::Number(env.borrow().modded(num))),
+        o => Ok(o)
     }
 }
 
