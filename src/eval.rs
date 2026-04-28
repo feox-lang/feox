@@ -58,6 +58,12 @@ pub struct Env {
     modulus: Vec<i64>,
 }
 
+impl Default for Env {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Env {
     pub fn new() -> Self {
         Env {
@@ -104,12 +110,10 @@ impl Env {
             }
             *val = to_set;
             Ok(val.clone())
+        } else if let Some(p) = &self.parent {
+            p.borrow_mut().modify(name, indices, to_set)
         } else {
-            if let Some(p) = &self.parent {
-                p.borrow_mut().modify(name, indices, to_set)
-            } else {
-                Err(EvalError::UndefinedVariable(name))
-            }
+            Err(EvalError::UndefinedVariable(name))
         }
     }
 
@@ -206,8 +210,8 @@ impl Env {
 
     pub fn pow(&self, lhs: Value, rhs: Value) -> EvalResult {
         match (lhs, rhs) {
-            (Value::Number(mut lhs), Value::Number(mut rhs)) => Ok(Value::Number(
-                if let Some(modulus) = (&self.modulus).last() {
+            (Value::Number(mut lhs), Value::Number(mut rhs)) => {
+                Ok(Value::Number(if let Some(modulus) = self.modulus.last() {
                     let mut res = 1;
 
                     while rhs >= 1 {
@@ -231,8 +235,8 @@ impl Env {
                         rhs /= 2;
                     }
                     res
-                },
-            )),
+                }))
+            }
 
             (_, _) => Err(EvalError::TypeError("unsupported types for `**`")),
         }
@@ -244,7 +248,7 @@ impl Env {
                 if b == 0 {
                     return Err(EvalError::DivisionByZero);
                 }
-                if let Some(modulus) = (&self.modulus).last() {
+                if let Some(modulus) = self.modulus.last() {
                     let inv = inverse_mod(b, *modulus)?;
                     let res = ((a as i128) * (inv as i128)).rem_euclid(*modulus as i128) as i64;
                     Ok(Value::Number(res))
@@ -258,7 +262,7 @@ impl Env {
     }
 
     pub fn modded(&self, num: i64) -> i64 {
-        if let Some(modulus) = (&self.modulus).last() {
+        if let Some(modulus) = self.modulus.last() {
             ((num % modulus) + modulus) % modulus
         } else {
             num
@@ -362,32 +366,30 @@ pub fn eval(expr: &Expr, env: EnvRef) -> EvalResult {
 
         Expr::LogicalOp { left, right, op } => match *op {
             LogicalOp::Or => {
-                let left = eval(&**left, env.clone())?;
+                let left = eval(left, env.clone())?;
                 if is_true(&left) {
                     return Ok(Value::Number(1));
                 }
-                let right = eval(&**right, env.clone())?;
+                let right = eval(right, env.clone())?;
                 if is_true(&right) {
                     return Ok(Value::Number(1));
                 }
                 return Ok(Value::Number(0));
             }
             LogicalOp::And => {
-                let left = eval(&**left, env.clone())?;
+                let left = eval(left, env.clone())?;
                 if !is_true(&left) {
                     return Ok(Value::Number(0));
                 }
-                let right = eval(&**right, env.clone())?;
+                let right = eval(right, env.clone())?;
                 if !is_true(&right) {
                     return Ok(Value::Number(0));
                 }
                 return Ok(Value::Number(1));
             }
         },
-        Expr::Number(n) => Ok(Value::Number(env.borrow().modded(n.clone()))),
-        Expr::String(s) => Ok(Value::Array(
-            s.chars().map(|x| Value::Char(x)).collect::<Vec<_>>(),
-        )),
+        Expr::Number(n) => Ok(Value::Number(env.borrow().modded(*n))),
+        Expr::String(s) => Ok(Value::Array(s.chars().map(Value::Char).collect::<Vec<_>>())),
         Expr::Bool(b) => Ok(Value::Number(*b as i64)),
         Expr::Nil => Ok(Value::Nil),
         Expr::Array(exprs) => {
@@ -448,7 +450,7 @@ pub fn eval(expr: &Expr, env: EnvRef) -> EvalResult {
                 });
             }
             eval_call(
-                &vec![*start.clone(), *end],
+                &[*start.clone(), *end],
                 &Box::new(Expr::Ident("range".to_string())),
                 env.clone(),
             )
@@ -458,7 +460,7 @@ pub fn eval(expr: &Expr, env: EnvRef) -> EvalResult {
         Expr::Break => Err(EvalError::Break),
         Expr::Return(v) => {
             if let Some(v) = v {
-                let v = eval(&**v, env.clone());
+                let v = eval(v, env.clone());
                 Err(EvalError::Return(Some(v?)))
             } else {
                 Err(EvalError::Return(Some(Value::Nil)))
@@ -486,8 +488,8 @@ pub fn eval(expr: &Expr, env: EnvRef) -> EvalResult {
     }
 }
 
-fn eval_mod(modulus: &Box<Expr>, body: &Box<Expr>, env: EnvRef) -> EvalResult {
-    let modulus = eval(&**modulus, env.clone())?;
+fn eval_mod(modulus: &Expr, body: &Expr, env: EnvRef) -> EvalResult {
+    let modulus = eval(modulus, env.clone())?;
 
     let modulus = match modulus {
         Value::Number(n) => n,
@@ -498,13 +500,13 @@ fn eval_mod(modulus: &Box<Expr>, body: &Box<Expr>, env: EnvRef) -> EvalResult {
     }
     env.borrow_mut().set_modulus(modulus);
 
-    let res = eval(&**body, env.clone());
+    let res = eval(body, env.clone());
     env.borrow_mut().reset_modulus();
     res
 }
 
-fn eval_for(var: &str, iter: &Box<Expr>, body: &Box<Expr>, env: EnvRef) -> EvalResult {
-    let iter = eval(&**iter, env.clone())?;
+fn eval_for(var: &str, iter: &Expr, body: &Expr, env: EnvRef) -> EvalResult {
+    let iter = eval(iter, env.clone())?;
 
     match iter {
         Value::Lambda {
@@ -523,7 +525,7 @@ fn eval_for(var: &str, iter: &Box<Expr>, body: &Box<Expr>, env: EnvRef) -> EvalR
                     break;
                 }
                 env.borrow_mut().set(var.to_string(), val);
-                match eval(&**body, env.clone()) {
+                match eval(body, env.clone()) {
                     Err(EvalError::Break) => break,
                     Err(EvalError::Continue) => continue,
                     Ok(_) => (),
@@ -536,22 +538,22 @@ fn eval_for(var: &str, iter: &Box<Expr>, body: &Box<Expr>, env: EnvRef) -> EvalR
     }
 }
 
-fn eval_while(cond: &Box<Expr>, body: &Box<Expr>, env: EnvRef) -> EvalResult {
-    let mut val = eval(&**cond, env.clone())?;
+fn eval_while(cond: &Expr, body: &Expr, env: EnvRef) -> EvalResult {
+    let mut val = eval(cond, env.clone())?;
 
     while is_true(&val) {
-        match eval(&**body, env.clone()) {
+        match eval(body, env.clone()) {
             Ok(v) => v,
             Err(EvalError::Continue) => continue,
             Err(EvalError::Break) => break,
             other => return other,
         };
-        val = eval(&**cond, env.clone())?;
+        val = eval(cond, env.clone())?;
     }
     Ok(Value::Nil)
 }
 
-fn eval_builtin(args: &Vec<Expr>, func: fn(Vec<Value>) -> EvalResult, env: EnvRef) -> EvalResult {
+fn eval_builtin(args: &[Expr], func: fn(Vec<Value>) -> EvalResult, env: EnvRef) -> EvalResult {
     func(
         args.iter()
             .map(|e| eval(e, env.clone()))
@@ -559,8 +561,8 @@ fn eval_builtin(args: &Vec<Expr>, func: fn(Vec<Value>) -> EvalResult, env: EnvRe
     )
 }
 
-fn eval_call(args: &Vec<Expr>, func: &Box<Expr>, env: EnvRef) -> EvalResult {
-    let func = match eval(&**func, env.clone()) {
+fn eval_call(args: &[Expr], func: &Expr, env: EnvRef) -> EvalResult {
+    let func = match eval(func, env.clone()) {
         Ok(v) => match v {
             Value::Lambda { args, body, env } => (args, body, env),
             Value::BuiltinFn(func) => return eval_builtin(args, func, env),
@@ -579,15 +581,15 @@ fn eval_call(args: &Vec<Expr>, func: &Box<Expr>, env: EnvRef) -> EvalResult {
         )));
     }
 
-    for (arg, name) in args.into_iter().zip(func.0) {
-        let val = match eval(&*arg, env.clone()) {
+    for (arg, name) in args.iter().zip(func.0) {
+        let val = match eval(arg, env.clone()) {
             Ok(v) => v,
             other => return other,
         };
         new_env.borrow_mut().set(name, val);
     }
 
-    let res = eval(&*func.1, new_env);
+    let res = eval(&func.1, new_env);
 
     match res {
         Ok(v) => Ok(v),
@@ -596,8 +598,8 @@ fn eval_call(args: &Vec<Expr>, func: &Box<Expr>, env: EnvRef) -> EvalResult {
     }
 }
 
-fn eval_unary_op(op: &UnaryOp, expr: &Box<Expr>, env: EnvRef) -> EvalResult {
-    let val = eval(&**expr, env.clone())?;
+fn eval_unary_op(op: &UnaryOp, expr: &Expr, env: EnvRef) -> EvalResult {
+    let val = eval(expr, env.clone())?;
     let val = match val {
         Value::Number(n) => n,
         _ => return Err(EvalError::TypeError("unary op requires a number")),
@@ -608,8 +610,8 @@ fn eval_unary_op(op: &UnaryOp, expr: &Box<Expr>, env: EnvRef) -> EvalResult {
     }
 }
 
-fn eval_declare(name: &str, value: &Box<Expr>, env: EnvRef) -> EvalResult {
-    let value = eval(&**value, env.clone());
+fn eval_declare(name: &str, value: &Expr, env: EnvRef) -> EvalResult {
+    let value = eval(value, env.clone());
     match value {
         Ok(v) => {
             env.borrow_mut().set(name.to_string(), v.clone());
@@ -619,10 +621,10 @@ fn eval_declare(name: &str, value: &Box<Expr>, env: EnvRef) -> EvalResult {
     }
 }
 
-fn eval_assign(name: &str, value: &Box<Expr>, indices: &Vec<Expr>, env: EnvRef) -> EvalResult {
-    let value = eval(&**value, env.clone());
+fn eval_assign(name: &str, value: &Expr, indices: &[Expr], env: EnvRef) -> EvalResult {
+    let value = eval(value, env.clone());
     let indices = indices
-        .into_iter()
+        .iter()
         .map(|x| eval(x, env.clone()))
         .collect::<Result<Vec<_>, _>>()?;
     match value {
@@ -643,9 +645,9 @@ fn is_true(val: &Value) -> bool {
     }
 }
 
-fn eval_bin_op(op: &BinOp, left: &Box<Expr>, right: &Box<Expr>, env: EnvRef) -> EvalResult {
-    let left = eval(&**left, env.clone())?;
-    let right = eval(&**right, env.clone())?;
+fn eval_bin_op(op: &BinOp, left: &Expr, right: &Expr, env: EnvRef) -> EvalResult {
+    let left = eval(left, env.clone())?;
+    let right = eval(right, env.clone())?;
     let env = env.borrow();
 
     match op {
@@ -667,20 +669,13 @@ fn eval_bin_op(op: &BinOp, left: &Box<Expr>, right: &Box<Expr>, env: EnvRef) -> 
     }
 }
 
-fn eval_if(
-    cond: &Box<Expr>,
-    then: &Box<Expr>,
-    else_: &Option<Box<Expr>>,
-    env: EnvRef,
-) -> EvalResult {
-    let cond_val = eval(&**cond, env.clone())?;
+fn eval_if(cond: &Expr, then: &Expr, else_: &Option<Box<Expr>>, env: EnvRef) -> EvalResult {
+    let cond_val = eval(cond, env.clone())?;
     if is_true(&cond_val) {
-        eval(&**then, env)
+        eval(then, env)
+    } else if let Some(else_) = else_ {
+        eval(else_, env)
     } else {
-        if let Some(else_) = else_ {
-            eval(&**else_, env)
-        } else {
-            Ok(Value::Nil)
-        }
+        Ok(Value::Nil)
     }
 }
