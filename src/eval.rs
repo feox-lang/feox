@@ -168,7 +168,7 @@ impl Env {
             (Value::Array(a), Value::Number(b)) | (Value::Number(b), Value::Array(a)) => {
                 let mut res = Vec::new();
                 for _ in 0..b {
-                    res.extend(a.borrow().clone().into_iter())
+                    res.extend(a.borrow().clone())
                 }
                 Ok(Value::Array(Rc::new(RefCell::new(res))))
             }

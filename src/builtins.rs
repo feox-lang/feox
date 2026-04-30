@@ -1,4 +1,8 @@
-use std::{cell::RefCell, io::{self, Read}, rc::Rc};
+use std::{
+    cell::RefCell,
+    io::{self, Read},
+    rc::Rc,
+};
 
 use crate::eval::{EvalError, EvalResult, Value};
 
