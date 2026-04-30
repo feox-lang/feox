@@ -94,22 +94,34 @@ impl Env {
 
     pub fn modify(&mut self, name: String, indices: Vec<Value>, to_set: Value) -> EvalResult {
         if self.vars.contains_key(&name) {
-            let mut val = self.vars.get_mut(&name).unwrap();
-            for idx in indices {
+            let val = self.vars.get_mut(&name).unwrap();
+            if indices.is_empty() {
+                *val = to_set;
+                return Ok(val.clone());
+            }
+            let mut arr = match val {
+                Value::Array(x) => x.clone(),
+                _ => return Err(EvalError::TypeError("cannot index into non-array")),
+            };
+            let last_idx = indices.len() - 1;
+            for (i, idx) in indices.iter().enumerate() {
                 let idx = match idx {
-                    Value::Number(x) => x,
+                    Value::Number(x) => *x as usize,
                     _ => return Err(EvalError::TypeError("index has to be a number")),
                 };
-
-                match val {
-                    Value::Array(x) => {
-                        val = x.get_mut(idx as usize).ok_or(EvalError::IndexError)?
-                    }
-                    _ => return Err(EvalError::TypeError("cannot index into non-array")),
-                };
+                if i == last_idx {
+                    arr.borrow_mut()[idx] = to_set.clone();
+                    return Ok(to_set);
+                } else {
+                    let next = match arr.borrow().get(idx) {
+                        Some(Value::Array(x)) => x.clone(),
+                        Some(_) => return Err(EvalError::TypeError("cannot index into non-array")),
+                        None => return Err(EvalError::IndexError),
+                    };
+                    arr = next;
+                }
             }
-            *val = to_set;
-            Ok(val.clone())
+            Ok(to_set)
         } else if let Some(p) = &self.parent {
             p.borrow_mut().modify(name, indices, to_set)
         } else {
@@ -131,17 +143,20 @@ impl Env {
             (Value::Char(a), Value::Number(b)) | (Value::Number(b), Value::Char(a)) => {
                 Ok(Value::Char((a as u8 + b as u8) as char))
             }
-            (Value::Array(mut a), Value::Array(mut b)) => {
-                a.append(&mut b);
-                Ok(Value::Array(a))
+            (Value::Array(a), Value::Array(b)) => {
+                let mut new = a.borrow().clone();
+                new.extend(b.borrow().clone());
+                Ok(Value::Array(Rc::new(RefCell::new(new))))
             }
-            (Value::Array(mut a), b) => {
-                a.push(b);
-                Ok(Value::Array(a))
+            (Value::Array(a), b) => {
+                let mut new = a.borrow().clone();
+                new.push(b);
+                Ok(Value::Array(Rc::new(RefCell::new(new))))
             }
-            (b, Value::Array(mut a)) => {
-                a.insert(0, b);
-                Ok(Value::Array(a))
+            (b, Value::Array(a)) => {
+                let mut new = a.borrow().clone();
+                new.insert(0, b);
+                Ok(Value::Array(Rc::new(RefCell::new(new))))
             }
             (_, _) => Err(EvalError::TypeError("unsupported types for `+`")),
         }
@@ -153,9 +168,9 @@ impl Env {
             (Value::Array(a), Value::Number(b)) | (Value::Number(b), Value::Array(a)) => {
                 let mut res = Vec::new();
                 for _ in 0..b {
-                    res.extend(a.clone())
+                    res.extend(a.borrow().clone().into_iter())
                 }
-                Ok(Value::Array(res))
+                Ok(Value::Array(Rc::new(RefCell::new(res))))
             }
 
             (_, _) => Err(EvalError::TypeError("unsupported types for `*`")),
@@ -312,11 +327,11 @@ pub enum EvalError {
 #[derive(Debug, Clone, Default)]
 pub enum Value {
     Number(i64),
-    Array(Vec<Value>),
+    Array(Rc<RefCell<Vec<Value>>>),
     Char(char),
     Lambda {
-        args: Vec<String>,
-        body: Box<Expr>,
+        args: Rc<Vec<String>>,
+        body: Rc<Box<Expr>>,
         env: EnvRef,
     },
     BuiltinFn(fn(Vec<Value>) -> EvalResult),
@@ -328,11 +343,11 @@ impl std::fmt::Display for Value {
         match self {
             Value::Number(n) => write!(f, "{}", n),
             Value::Array(a) => {
-                let is_string = a.iter().all(|v| matches!(v, Value::Char(_)));
+                let is_string = a.borrow().iter().all(|v| matches!(v, Value::Char(_)));
 
                 if is_string {
                     write!(f, "\"")?;
-                    for v in a {
+                    for v in a.borrow().iter() {
                         if let Value::Char(c) = v {
                             write!(f, "{}", c)?;
                         }
@@ -340,7 +355,7 @@ impl std::fmt::Display for Value {
                     write!(f, "\"")
                 } else {
                     write!(f, "[")?;
-                    for (i, v) in a.iter().enumerate() {
+                    for (i, v) in a.borrow().iter().enumerate() {
                         if i > 0 {
                             write!(f, ", ")?;
                         }
@@ -357,7 +372,6 @@ impl std::fmt::Display for Value {
         }
     }
 }
-
 pub type EvalResult = Result<Value, EvalError>;
 
 pub fn eval(expr: &Expr, env: EnvRef) -> EvalResult {
@@ -389,7 +403,9 @@ pub fn eval(expr: &Expr, env: EnvRef) -> EvalResult {
             }
         },
         Expr::Number(n) => Ok(Value::Number(env.borrow().modded(*n))),
-        Expr::String(s) => Ok(Value::Array(s.chars().map(Value::Char).collect::<Vec<_>>())),
+        Expr::String(s) => Ok(Value::Array(Rc::new(RefCell::new(
+            s.chars().map(Value::Char).collect::<Vec<_>>(),
+        )))),
         Expr::Bool(b) => Ok(Value::Number(*b as i64)),
         Expr::Nil => Ok(Value::Nil),
         Expr::Array(exprs) => {
@@ -402,7 +418,7 @@ pub fn eval(expr: &Expr, env: EnvRef) -> EvalResult {
                 }
             }
 
-            Ok(Value::Array(out))
+            Ok(Value::Array(Rc::new(RefCell::new(out))))
         }
         Expr::If { cond, then, else_ } => eval_if(cond, then, else_, env.clone()),
         Expr::BinOp { op, left, right } => eval_bin_op(op, left, right, env.clone()),
@@ -429,6 +445,7 @@ pub fn eval(expr: &Expr, env: EnvRef) -> EvalResult {
             };
 
             Ok(object
+                .borrow()
                 .get(index as usize)
                 .ok_or(EvalError::IndexError)?
                 .clone())
@@ -467,8 +484,8 @@ pub fn eval(expr: &Expr, env: EnvRef) -> EvalResult {
             }
         }
         Expr::Lambda { args, body } => Ok(Value::Lambda {
-            args: args.clone(),
-            body: body.clone(),
+            args: args.clone().into(),
+            body: body.clone().into(),
             env: env.clone(),
         }),
         Expr::Call { args, func } => eval_call(args, func, env.clone()),
@@ -581,12 +598,12 @@ fn eval_call(args: &[Expr], func: &Expr, env: EnvRef) -> EvalResult {
         )));
     }
 
-    for (arg, name) in args.iter().zip(func.0) {
+    for (arg, name) in args.iter().zip(func.0.iter()) {
         let val = match eval(arg, env.clone()) {
             Ok(v) => v,
             other => return other,
         };
-        new_env.borrow_mut().set(name, val);
+        new_env.borrow_mut().set(name.to_string(), val);
     }
 
     let res = eval(&func.1, new_env);
@@ -640,7 +657,7 @@ fn is_true(val: &Value) -> bool {
     match val {
         Value::Nil => false,
         Value::Number(n) if n.is_zero() => false,
-        Value::Array(v) if v.is_empty() => false,
+        Value::Array(v) if v.borrow().is_empty() => false,
         _ => true,
     }
 }

@@ -1,3 +1,11 @@
+let reversed = |arr| {
+    let newarr = [];
+    for i in (1..=len(arr)) {
+        newarr.push(arr[len(arr) - i]);
+    };
+    newarr
+};
+
 let range = |start, end| {
     let i = start;
     || {
@@ -28,7 +36,7 @@ let collect = |iter| {
     let arr = [];
     let v = nil;
     while (v = iter()) != nil {
-        arr = arr + [v]
+        arr.push(v);
     };
     arr
 };
@@ -59,6 +67,21 @@ let take = |iter, n| {
 
         i = i + 1;
         v
+    }
+};
+
+let take_while = |iter, f| {
+    let b = 0;
+    || {
+        if b {
+            return nil;
+        };
+        let r = iter();
+        if r == nil || !f(r) {
+            b = 1;
+            return nil;
+        };
+        return r;
     }
 };
 
@@ -132,16 +155,16 @@ let windows = |iter, num| {
                 if el == nil {
                     break;
                 };
-                arr = arr + el;
+                arr.push(el);
             };
             if j != (i + num - 1) {return nil};
         } else {
             let newarr = [];
             for j in (1..len(arr)) {
-                newarr = newarr + arr[j];
+                newarr.push(arr[j]);
             };
             if (let res = iter()) == nil {return nil};
-            newarr = newarr + res;
+            newarr.push(res);
             arr = newarr;
         };
         i = i + 1;
@@ -262,11 +285,11 @@ let itos = |n| {
     if n == 0 { return "0" };
     while n > 0 {
         let r = n % 10;
-        res = ['0' + r] + res;
+        res.push('0' + r);
         n = n / 10;
     };
-    if neg { res = "-" + res };
-    res
+    if neg { res.push('-') };
+    reversed(res)
 };
 
 let enumerate = |iter| {
@@ -325,4 +348,49 @@ let chain = |iter1, iter2| {
         };
         r
     }
+};
+let small_primes = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37];
+let is_prime = |n| {
+    if n < 2 { return false };
+    if small_primes.into_iter().map(|p| n == p).any() { return true };
+    if small_primes.into_iter().map(|p| n % p == 0).any() { return false };
+    if n < 1369 { return true };
+    let p = n - 1;
+
+    let s = 0;
+    let np = p;
+    while np > 0 && np % 2 == 0 {
+        s = s + 1;
+        np = np / 2;
+    };
+
+    let d = np;
+    mod n {
+
+        for a in small_primes.into_iter() {
+            let x = a ** d;
+            if x == 1 || x == p { continue };
+            let composite = true;
+            for _ in (0..s-1) {
+                x = x * x;
+                if x == p {
+                    composite = false;
+                    break;
+                };
+            };
+            if composite { return false };
+        };
+    };
+    true
+};
+
+let primes = || {
+    let i = 0;
+    || {
+        i = i + 1;
+        while !is_prime(i) {
+            i = i + 1;
+        };
+        i
+    };
 };

@@ -1,0 +1,15 @@
+site_name: FeOx
+theme:
+  name: material
+  palette:
+    scheme: slate
+    primary: deep orange
+    accent: orange
+nav:
+  - Home: index.md
+  - Syntax Reference: feox.md
+  - Examples: examples.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details

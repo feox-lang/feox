@@ -1,4 +1,4 @@
-use std::io::{self, Read};
+use std::{cell::RefCell, io::{self, Read}, rc::Rc};
 
 use crate::eval::{EvalError, EvalResult, Value};
 
@@ -11,7 +11,7 @@ pub fn len(args: Vec<Value>) -> EvalResult {
     }
 
     match &args[0] {
-        Value::Array(a) => Ok(Value::Number(a.len() as i64)),
+        Value::Array(a) => Ok(Value::Number(a.borrow().len() as i64)),
         _ => Err(EvalError::TypeError("argument of len has to be an array")),
     }
 }
@@ -34,7 +34,7 @@ pub fn input(_: Vec<Value>) -> EvalResult {
             res.push(Value::Char(b as char));
         }
     }
-    Ok(Value::Array(res))
+    Ok(Value::Array(Rc::new(RefCell::new(res))))
 }
 
 pub fn print(args: Vec<Value>) -> EvalResult {
@@ -52,17 +52,17 @@ pub fn print(args: Vec<Value>) -> EvalResult {
             Ok(Value::Nil)
         }
         Value::Array(a) => {
-            let is_string = a.iter().all(|v| matches!(v, Value::Char(_)));
+            let is_string = a.borrow().iter().all(|v| matches!(v, Value::Char(_)));
 
             if is_string {
-                for v in a {
+                for v in a.borrow().iter() {
                     if let Value::Char(c) = v {
                         print!("{}", c);
                     }
                 }
                 Ok(Value::Nil)
             } else {
-                for (i, v) in a.iter().enumerate() {
+                for (i, v) in a.borrow().iter().enumerate() {
                     if i > 0 {
                         print!(" ");
                     }
@@ -92,11 +92,11 @@ pub fn push(mut args: Vec<Value>) -> EvalResult {
     }
     let obj = args.remove(0);
     let val = args.remove(0);
-    let mut obj = match obj {
+    let obj = match obj {
         Value::Array(a) => a,
         _ => return Err(EvalError::TypeError("can only push to arrays")),
     };
 
-    obj.push(val);
-    Ok(Value::Array(obj))
+    obj.borrow_mut().push(val);
+    Ok(Value::Nil)
 }
