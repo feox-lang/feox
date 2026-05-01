@@ -1,4 +1,5 @@
 /target
 /.idea
+docs/site/
 tests/cache
 __pycache__
