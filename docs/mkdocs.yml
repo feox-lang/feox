@@ -7,9 +7,7 @@ theme:
     accent: orange
 nav:
   - Home: index.md
-  - Syntax Reference: feox.md
-  - Examples: examples.md
-
+  - Getting Started: getting-started.md
 markdown_extensions:
   - admonition
   - pymdownx.details
