@@ -66,7 +66,8 @@ fn parse_expr(pair: Pair<Rule>) -> Expr {
         | Rule::range
         | Rule::add
         | Rule::mul
-        | Rule::pow => parse_binary_chain(pair),
+        | Rule::pow 
+        | Rule::shift => parse_binary_chain(pair),
 
         Rule::unary => parse_unary(pair),
         Rule::postfix => parse_postfix(pair),
@@ -223,6 +224,8 @@ fn parse_binary_chain(pair: Pair<Rule>) -> Expr {
                     "<" => BinOp::Lt,
                     ">=" => BinOp::Ge,
                     ">" => BinOp::Gt,
+                    ">>" => BinOp::RShift,
+                    "<<" => BinOp::LShift,
                     _ => unreachable!("{}", op.as_str()),
                 },
                 left: Box::new(expr),

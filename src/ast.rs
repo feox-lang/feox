@@ -133,6 +133,8 @@ pub enum BinOp {
     And,
     Or,
     Xor,
+    LShift,
+    RShift
 }
 
 #[derive(Debug, Clone)]

@@ -227,8 +227,11 @@ let perms = |arr| {
             l = l + 1;
             r = r - 1;
         };
-
-        a
+        let arr = [];
+        for el in a.into_iter() {
+            arr.push(el);
+        };
+        arr
     }
 };
 
@@ -393,4 +396,16 @@ let primes = || {
         };
         i
     };
+};
+
+let subsets = |arr| {
+    (0..(1<<len(arr))).map(|i| {
+        let cur = [];
+        for j in (0..len(arr)) {
+            if (1 << j) & i {
+                cur.push(arr[j]);
+            };
+        };
+        cur
+    });
 };

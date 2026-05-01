@@ -28,6 +28,21 @@ let always_one = || 1; // infinite iterator
 "abc".into_iter();     // iterator over chars
 ```
 
+### Primes
+```
+primes().take(1000).collect(); // first 1000 prime numbers
+```
+
+### Perms
+```
+perms([1, 2, 3]); // [[3, 2, 1], [3, 2, 1], [3, 2, 1], [3, 2, 1], [3, 2, 1] [3, 2, 1]
+```
+
+### Subsets
+```
+subsets([1, 2, 3]); // [] [1] [2] [1, 2] [3] [1, 3] [2, 3] [1, 2, 3]
+```
+
 ## Transforming Iterators
 ### Map
 ```feox

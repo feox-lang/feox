@@ -223,6 +223,22 @@ impl Env {
         }
     }
 
+    pub fn lshift(&self, lhs: Value, rhs: Value) -> EvalResult {
+        match (lhs, rhs) {
+            (Value::Number(a), Value::Number(b)) => Ok(Value::Number(self.modded(a << b))),
+
+            (_, _) => Err(EvalError::TypeError("unsupported types for `<<`")),
+        }
+    }
+
+    pub fn rshift(&self, lhs: Value, rhs: Value) -> EvalResult {
+        match (lhs, rhs) {
+            (Value::Number(a), Value::Number(b)) => Ok(Value::Number(self.modded(a >> b))),
+
+            (_, _) => Err(EvalError::TypeError("unsupported types for `>>`")),
+        }
+    }
+
     pub fn pow(&self, lhs: Value, rhs: Value) -> EvalResult {
         match (lhs, rhs) {
             (Value::Number(mut lhs), Value::Number(mut rhs)) => {
@@ -343,7 +359,7 @@ impl std::fmt::Display for Value {
         match self {
             Value::Number(n) => write!(f, "{}", n),
             Value::Array(a) => {
-                let is_string = a.borrow().iter().all(|v| matches!(v, Value::Char(_)));
+                let is_string = a.borrow().iter().all(|v| matches!(v, Value::Char(_))) && !a.borrow().is_empty();
 
                 if is_string {
                     write!(f, "\"")?;
@@ -683,6 +699,8 @@ fn eval_bin_op(op: &BinOp, left: &Expr, right: &Expr, env: EnvRef) -> EvalResult
         BinOp::Gt => Ok(Value::Number((left > right) as i64)),
         BinOp::Le => Ok(Value::Number((left <= right) as i64)),
         BinOp::Ge => Ok(Value::Number((left >= right) as i64)),
+        BinOp::RShift => env.rshift(left, right),
+        BinOp::LShift => env.lshift(left, right)
     }
 }
 

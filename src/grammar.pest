@@ -41,6 +41,8 @@ range_op = { "..=" | ".." }
 
 cmp_op   = { "==" | "!=" | "<=" | ">=" | "<" | ">" }
 
+shift_op = { "<<" | ">>"}
+
 logical_or  = { logical_and ~ (logical_or_op ~ logical_and)*}
 logical_and = { or ~ (logical_and_op ~ or)* }
 or    =  { and   ~ (or_op  ~ and)* }
@@ -48,7 +50,8 @@ and   =  { xor   ~ (and_op  ~ xor)* }
 xor   =  { cmp   ~ (xor_op  ~ cmp)* }
 cmp   =  { range ~ (cmp_op ~ range)? }
 range =  { add   ~ (range_op ~ add)? }
-add   =  { mul   ~ (add_op ~ mul)* }
+add   =  { shift   ~ (add_op ~ shift)* }
+shift =  { mul   ~ (shift_op ~ mul)* }
 mul   =  { pow   ~ (mul_op ~ pow)* }
 pow   =  { unary ~ (pow_op ~ pow)? }
 
