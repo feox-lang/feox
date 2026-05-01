@@ -66,7 +66,7 @@ fn parse_expr(pair: Pair<Rule>) -> Expr {
         | Rule::range
         | Rule::add
         | Rule::mul
-        | Rule::pow 
+        | Rule::pow
         | Rule::shift => parse_binary_chain(pair),
 
         Rule::unary => parse_unary(pair),

@@ -359,7 +359,8 @@ impl std::fmt::Display for Value {
         match self {
             Value::Number(n) => write!(f, "{}", n),
             Value::Array(a) => {
-                let is_string = a.borrow().iter().all(|v| matches!(v, Value::Char(_))) && !a.borrow().is_empty();
+                let is_string = a.borrow().iter().all(|v| matches!(v, Value::Char(_)))
+                    && !a.borrow().is_empty();
 
                 if is_string {
                     write!(f, "\"")?;
@@ -700,7 +701,7 @@ fn eval_bin_op(op: &BinOp, left: &Expr, right: &Expr, env: EnvRef) -> EvalResult
         BinOp::Le => Ok(Value::Number((left <= right) as i64)),
         BinOp::Ge => Ok(Value::Number((left >= right) as i64)),
         BinOp::RShift => env.rshift(left, right),
-        BinOp::LShift => env.lshift(left, right)
+        BinOp::LShift => env.lshift(left, right),
     }
 }
 
