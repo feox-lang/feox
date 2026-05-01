@@ -11,3 +11,6 @@ nav:
 markdown_extensions:
   - admonition
   - pymdownx.details
+
+site_name: FeOx docs
+site_url: https://feox-lang.github.io/feox/
