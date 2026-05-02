@@ -409,3 +409,17 @@ let subsets = |arr| {
         cur
     });
 };
+
+let count = |iter, f| {
+    let cnt = 0;
+    for el in iter {
+        if f(el) {
+            cnt = cnt + 1;
+        };
+    };
+    cnt
+};
+
+let count_val = |iter, value| {
+    iter.count(|x| x == value)
+};
